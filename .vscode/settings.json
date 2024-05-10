@@ -1,0 +1,17 @@
+{
+    "files.autoSave": "onFocusChange",
+    "explorer.sortOrder": "type",
+    "jupyter.interactiveWindow.textEditor.executeSelection": true,
+    "files.exclude": {
+        "**/*.pdf": true,
+        "**/*.docx": true,
+        "**/.ipynb_checkpoints":true,
+        "**/__pycache__": true
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "black-formatter.args": [
+        "--line-length=108"
+    ]
+}
