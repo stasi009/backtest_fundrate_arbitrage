@@ -24,9 +24,11 @@ class NotEnoughMargin(Exception):
 
 
 class CexAccounts:
-    def __init__(self, name:str,init_cash: float, symbol_infos: dict[str, float], commission=0.00005) -> None:
+    def __init__(
+        self, name: str, init_cash: float, symbol_infos: dict[str, float], commission=0.00005
+    ) -> None:
         self._name = name
-        
+
         self.__init_cash = init_cash
         self._cash = init_cash  # 可用资金
         self._commission = commission
@@ -85,9 +87,9 @@ class CexAccounts:
         else:
             close_shares = min(abs(account.long_short_shares), shares)
         open_shares = shares - close_shares
-        
-        fee = price *  shares * self._commission
-        self.__update_cash(-fee,need_margincall=False)
+
+        fee = price * shares * self._commission
+        self.__update_cash(-fee, need_margincall=False)
         account.pnl -= fee
 
         if close_shares > 0:  # 先平仓
@@ -104,8 +106,25 @@ class CexAccounts:
 
     def clear(self, symbol: str, price: float):
         account = self._perps_accounts[symbol]
-        is_long = 1 if account.long_short_shares < 0 else -1 #平仓时的交易方向肯定与当前持仓方向相反
+        is_long = 1 if account.long_short_shares < 0 else -1  # 平仓时的交易方向肯定与当前持仓方向相反
         self._trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
+
+    @property
+    def _current_metric(self):
+        total_used_margin = 0
+        total_pnl = 0
+        for symbol, account in self._perps_accounts.items():
+            total_used_margin += account.used_margin
+            total_pnl += account.pnl
+        total_value = self._cash + total_used_margin
+        assert abs(self.__init_cash + total_pnl - total_value) < 1e-6
+
+        return dict(
+            used_margin=total_used_margin,
+            cash=self._cash,
+            total_value=self._cash + total_used_margin,
+            pnl=total_pnl,
+        )
 
     def settle(self, timestamp, prices):
         """
@@ -114,11 +133,11 @@ class CexAccounts:
         - prices是一个pd.Series, prices[symbol]表示该symbol的价格
         - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格
         """
-        for symbol,account in self._perps_accounts.items():
+        for symbol, account in self._perps_accounts.items():
             price = prices[symbol]
             if np.isnan(price):
                 continue
-            
+
             # ----------- mark to market
             # long_short_shares>0，持有多仓，price>hold_price才profit
             # long_short_shares<0，持有空仓，price<hold_price才profit
@@ -134,20 +153,6 @@ class CexAccounts:
             account.used_margin += margin_diff
 
         # ------------ calculate metrics
-        total_used_margin = 0
-        total_pnl = 0
-        for symbol, account in self._perps_accounts.items():
-            total_used_margin += account.used_margin
-            total_pnl += account.pnl
-        total_value = self._cash + total_used_margin
-        assert abs(self.__init_cash + total_pnl - total_value) < 1e-6
-
-        self._metrics.append(
-            dict(
-                timestamp=timestamp,
-                used_margin=total_used_margin,
-                cash=self._cash,
-                total_value=self._cash + total_used_margin,
-                pnl=total_pnl,
-            )
-        )
+        metric = self._current_metric
+        metric["timestamp"] = timestamp
+        self._metrics.append(metric)
