@@ -113,7 +113,7 @@ class CexAccounts:
     def _current_metric(self):
         total_used_margin = 0
         total_pnl = 0
-        for symbol, account in self._perps_accounts.items():
+        for _, account in self._perps_accounts.items():
             total_used_margin += account.used_margin
             total_pnl += account.pnl
         total_value = self._cash + total_used_margin
