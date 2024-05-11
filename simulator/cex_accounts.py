@@ -24,7 +24,9 @@ class NotEnoughMargin(Exception):
 
 
 class CexAccounts:
-    def __init__(self, init_cash: float, symbol_infos: dict[str, float], commission=0.00005) -> None:
+    def __init__(self, name:str,init_cash: float, symbol_infos: dict[str, float], commission=0.00005) -> None:
+        self._name = name
+        
         self.__init_cash = init_cash
         self._cash = init_cash  # 可用资金
         self._commission = commission
