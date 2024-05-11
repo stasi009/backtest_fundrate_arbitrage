@@ -6,10 +6,12 @@ def test1():
         'A':0.1,
         'B':0.1
     }
-    cex = CexAccounts(name='test',init_cash=10000,symbol_infos=symbols,commission=0.001)
+    cex = CexAccounts(name='test',init_cash=1000,symbol_infos=symbols,commission=0.001)
     
-    cex.buy(symbol='A',price=10,shares=0.5)
+    cex.buy(symbol='A',price=100,shares=0.5)
+    
+    cex.inspect()
     
 if __name__ == "__main__":
-    pass
+    test1()
     

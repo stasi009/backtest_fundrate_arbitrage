@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import logging
+from prettytable import PrettyTable
 
 
 class PerpsAccount:
@@ -13,7 +14,6 @@ class PerpsAccount:
         self.margin_rate = margin_rate
         self.used_margin = 0
 
-        self.fee = 0
         self.pnl = 0  # unrealized PnL永远都是暂时的，随着mark to market，都要落实成realized PnL
         self.funding_amount = 0  # 根据funding rate带来的支出或收入
 
@@ -156,3 +156,20 @@ class CexAccounts:
         metric = self._current_metric
         metric["timestamp"] = timestamp
         self._metrics.append(metric)
+
+    def inspect(self):
+        pt = PrettyTable(
+            ["Symbol", "Shares", "HoldPrice", "UsedMargin", "PnL", "FundAmount"], title="Perps Accounts"
+        )
+        for symbol, account in self._perps_accounts.items():
+            pt.add_row(
+                (
+                    symbol,
+                    account.long_short_shares,
+                    account.hold_price,
+                    account.used_margin,
+                    account.pnl,
+                    account.funding_amount,
+                )
+            )
+        print(pt)
