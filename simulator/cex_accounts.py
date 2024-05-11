@@ -59,14 +59,15 @@ class CexAccounts:
         pnl = -is_long * (price - account.hold_price) * shares
         self.__update_cash(pnl, need_margincall=False)
         account.pnl += pnl
-
-        # is_long>0，买入平仓，说明平的是空仓，原来的long_short_shares<0，加上正shares，持仓才变小
-        # is_long<0，卖出平仓，说明平的是多仓，原来的long_short_shares>0，加上负shares，持仓才变小
-        account.long_short_shares += is_long * shares
-
+        
         reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
         account.used_margin -= reduce_margin  # 释放保证金
         self.__update_cash(reduce_margin, need_margincall=False)
+
+        # is_long>0，买入平仓，说明平的是空仓，原来的long_short_shares<0，加上正shares，持仓才变小
+        # is_long<0，卖出平仓，说明平的是多仓，原来的long_short_shares>0，加上负shares，持仓才变小
+        # 另外，平仓时不用更新hold price，因为PnL被转移到cash账户中了，不在资产帐户中
+        account.long_short_shares += is_long * shares
 
     def _open(self, symbol: str, is_long: int, price: float, shares: float):
         account = self._perps_accounts[symbol]
@@ -157,7 +158,8 @@ class CexAccounts:
         metric["timestamp"] = timestamp
         self._metrics.append(metric)
 
-    def inspect(self):
+    def inspect(self,header:str=""):
+        print(f'\n\n************************* {header}')
         # ---------- summary
         metric_keys = ["total_value", "cash", "used_margin", "pnl"]
         pt = PrettyTable(metric_keys, title="Summary")
@@ -172,11 +174,11 @@ class CexAccounts:
             pt.add_row(
                 (
                     symbol,
-                    account.long_short_shares,
-                    account.hold_price,
-                    account.used_margin,
-                    account.pnl,
-                    account.funding_amount,
+                    f'{account.long_short_shares:.3f}',
+                    f'{account.hold_price:.3f}',
+                    f'{account.used_margin:.3f}',
+                    f'{account.pnl:.3f}',
+                    f'{account.funding_amount:.3f}',
                 )
             )
         print(pt)
