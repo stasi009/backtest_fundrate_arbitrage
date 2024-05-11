@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 
 
 class PerpsAccount:
@@ -38,10 +39,11 @@ class CexAccounts:
         """
         need_margincall的设置标准
         - 如果是主动交易行为，设置need_margincall=False，因为我们干脆放弃这次交易就好了，就不会触发margin call了
-        - 如果是mark to market导致的保证金不足，就一定要触发margin call，停止回测
+        - 如果是mark to market导致的保证金不足，就一定要触发margin call，终止回测
         """
         temp = self._cash + delta_cash
         if temp <= 0:
+            logging.critical(f"Not Enough Margin: original cash={self._cash},delta_cash={delta_cash}")
             raise NotEnoughMargin(need_margincall)
         self._cash = temp
 
@@ -96,7 +98,7 @@ class CexAccounts:
 
     def clear(self, symbol: str, price: float):
         account = self._perps_accounts[symbol]
-        is_long = 1 if account.long_short_shares < 0 else -1
+        is_long = 1 if account.long_short_shares < 0 else -1 #平仓时的交易方向肯定与当前持仓方向相反
         self._trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
 
     def _mark_to_market(self, symbol: str, price: float) -> None:
