@@ -83,6 +83,10 @@ class CexAccounts:
         else:
             close_shares = min(abs(account.long_short_shares), shares)
         open_shares = shares - close_shares
+        
+        fee = price *  shares * self._commission
+        self.__update_cash(-fee,need_margincall=False)
+        account.pnl -= fee
 
         if close_shares > 0:  # 先平仓
             self._close(symbol=symbol, is_long=is_long, price=price, shares=shares)
