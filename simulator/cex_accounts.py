@@ -158,6 +158,13 @@ class CexAccounts:
         self._metrics.append(metric)
 
     def inspect(self):
+        # ---------- summary
+        metric_keys = ["total_value", "cash", "used_margin", "pnl"]
+        pt = PrettyTable(metric_keys, title="Summary")
+        metric = self._current_metric
+        pt.add_row([f'{metric[k]:.3f}' for k in metric_keys])
+        print(pt)
+        # ---------- each account
         pt = PrettyTable(
             ["Symbol", "Shares", "HoldPrice", "UsedMargin", "PnL", "FundAmount"], title="Perps Accounts"
         )
