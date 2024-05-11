@@ -107,23 +107,6 @@ class CexAccounts:
         is_long = 1 if account.long_short_shares < 0 else -1 #平仓时的交易方向肯定与当前持仓方向相反
         self._trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
 
-    def _mark_to_market(self, symbol: str, price: float) -> None:
-        account = self._perps_accounts[symbol]
-
-        # ----------- mark to market
-        # long_short_shares>0，持有多仓，price>hold_price才profit
-        # long_short_shares<0，持有空仓，price<hold_price才profit
-        pnl = (price - account.hold_price) * account.long_short_shares
-        self.__update_cash(pnl, need_margincall=True)
-        account.pnl += pnl
-        account.hold_price = price  # mark to market
-
-        # ----------- new margin requirement
-        new_margin = abs(account.long_short_shares) * price * account.margin_rate
-        margin_diff = new_margin - account.used_margin
-        self.__update_cash(-margin_diff, need_margincall=True)
-        account.used_margin += margin_diff
-
     def settle(self, timestamp, prices):
         """
         timestamp和prices都由pd.DataFrame.iterrows获得
@@ -131,11 +114,24 @@ class CexAccounts:
         - prices是一个pd.Series, prices[symbol]表示该symbol的价格
         - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格
         """
-        for symbol in self._perps_accounts:
+        for symbol,account in self._perps_accounts.items():
             price = prices[symbol]
             if np.isnan(price):
                 continue
-            self._mark_to_market(symbol=symbol, price=price)
+            
+            # ----------- mark to market
+            # long_short_shares>0，持有多仓，price>hold_price才profit
+            # long_short_shares<0，持有空仓，price<hold_price才profit
+            pnl = (price - account.hold_price) * account.long_short_shares
+            self.__update_cash(pnl, need_margincall=True)
+            account.pnl += pnl
+            account.hold_price = price  # mark to market
+
+            # ----------- new margin requirement
+            new_margin = abs(account.long_short_shares) * price * account.margin_rate
+            margin_diff = new_margin - account.used_margin
+            self.__update_cash(-margin_diff, need_margincall=True)
+            account.used_margin += margin_diff
 
         # ------------ calculate metrics
         total_used_margin = 0
