@@ -1,4 +1,5 @@
 from simulator.cex_accounts import CexAccounts
+from datetime import datetime
 
 
 def test1():
@@ -9,9 +10,15 @@ def test1():
     cex.sell(symbol="B", price=60, shares=0.3)
     cex.inspect()
     
-    cex.clear('B',price=59)
+    # cex.clear('B',price=59)
+    # cex.inspect()
+    
+
+    cex.settle(datetime.now(),prices={'A':120,'B':50})
     cex.inspect()
 
+    cex.settle(datetime.now(),prices={'A':90,'B':80})
+    cex.inspect()
 
 if __name__ == "__main__":
     test1()
