@@ -59,7 +59,7 @@ class CexAccounts:
         pnl = -is_long * (price - account.hold_price) * shares
         self.__update_cash(pnl, need_margincall=False)
         account.pnl += pnl
-        
+
         reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
         account.used_margin -= reduce_margin  # 释放保证金
         self.__update_cash(reduce_margin, need_margincall=False)
@@ -158,13 +158,19 @@ class CexAccounts:
         metric["timestamp"] = timestamp
         self._metrics.append(metric)
 
-    def inspect(self,header:str=""):
-        print(f'\n\n************************* {header}')
+    @property
+    def metric_history(self):
+        df = pd.DataFrame(self._metrics)
+        df.set_index("timestamp", inplace=True)
+        return df
+
+    def inspect(self, header: str = ""):
+        print(f"\n\n************************* {header}")
         # ---------- summary
         metric_keys = ["total_value", "cash", "used_margin", "pnl"]
         pt = PrettyTable(metric_keys, title="Summary")
         metric = self._current_metric
-        pt.add_row([f'{metric[k]:.3f}' for k in metric_keys])
+        pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
         print(pt)
         # ---------- each account
         pt = PrettyTable(
@@ -174,11 +180,11 @@ class CexAccounts:
             pt.add_row(
                 (
                     symbol,
-                    f'{account.long_short_shares:.3f}',
-                    f'{account.hold_price:.3f}',
-                    f'{account.used_margin:.3f}',
-                    f'{account.pnl:.3f}',
-                    f'{account.funding_amount:.3f}',
+                    f"{account.long_short_shares:.3f}",
+                    f"{account.hold_price:.3f}",
+                    f"{account.used_margin:.3f}",
+                    f"{account.pnl:.3f}",
+                    f"{account.funding_amount:.3f}",
                 )
             )
         print(pt)

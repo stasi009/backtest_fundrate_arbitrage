@@ -19,6 +19,8 @@ def test1():
     cex.clear("B", price=59)
     cex.inspect()
 
+    print(cex.metric_history)
+
 
 if __name__ == "__main__":
     test1()
