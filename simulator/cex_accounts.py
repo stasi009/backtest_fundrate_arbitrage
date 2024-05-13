@@ -131,7 +131,7 @@ class CexAccounts:
             fund_pnl=total_fund_pnl,
         )
 
-    def settle(self, timestamp, prices):
+    def trading_settle(self, prices):
         """
         timestamp和prices都由pd.DataFrame.iterrows获得
         - timestamp是某一行的index，代表时间
@@ -157,6 +157,7 @@ class CexAccounts:
             self.__update_cash(-margin_diff, need_margincall=True)
             account.used_margin += margin_diff
 
+    def record_metric(self, timestamp) -> None:
         # ------------ calculate metrics
         metric = self._current_metric
         metric["timestamp"] = timestamp

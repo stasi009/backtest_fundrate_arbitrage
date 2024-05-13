@@ -10,14 +10,16 @@ def test1():
     cex.sell(symbol="B", price=60, shares=0.3)
     cex.inspect()
 
-    cex.settle(datetime.now(), prices={"A": 120, "B": 50})
+    cex.trading_settle(prices={"A": 120, "B": 50})
     cex.inspect('settle')
+    cex.record_metric(datetime.now())
     
     cex.clear("B", price=59)
     cex.inspect()
 
-    cex.settle(datetime.now(), prices={"A": 90, "B": 80})
+    cex.trading_settle(prices={"A": 90, "B": 80})
     cex.inspect('settle')
+    cex.record_metric(datetime.now())
 
     print(cex.metric_history)
 
