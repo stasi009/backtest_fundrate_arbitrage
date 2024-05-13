@@ -15,8 +15,8 @@ class PerpsAccount:
         self.used_margin = 0
 
         # unrealized PnL永远都是暂时的，随着mark to market，都要落实成realized PnL
-        self.trade_pnl = 0  #由买卖产生的PnL
-        self.funding_pnl = 0  # 根据funding rate带来的支出或收入
+        self.trade_pnl = 0  # 由买卖产生的PnL
+        self.fund_pnl = 0  # 根据funding rate带来的支出或收入
 
 
 class NotEnoughMargin(Exception):
@@ -114,18 +114,21 @@ class CexAccounts:
     @property
     def _current_metric(self):
         total_used_margin = 0
-        total_pnl = 0
+        total_trade_pnl = 0
+        total_fund_pnl = 0
         for _, account in self._perps_accounts.items():
             total_used_margin += account.used_margin
-            total_pnl += account.trade_pnl+account.funding_pnl
+            total_trade_pnl += account.trade_pnl
+            total_fund_pnl += account.fund_pnl
         total_value = self._cash + total_used_margin
-        assert abs(self.__init_cash + total_pnl - total_value) < 1e-6
+        assert abs(self.__init_cash + total_trade_pnl + total_fund_pnl - total_value) < 1e-6
 
         return dict(
             used_margin=total_used_margin,
             cash=self._cash,
             total_value=self._cash + total_used_margin,
-            pnl=total_pnl,
+            trade_pnl=total_trade_pnl,
+            fund_pnl=total_fund_pnl,
         )
 
     def settle(self, timestamp, prices):
@@ -168,7 +171,7 @@ class CexAccounts:
     def inspect(self, header: str = ""):
         print(f"\n\n************************* {header}")
         # ---------- summary
-        metric_keys = ["total_value", "cash", "used_margin", "pnl"]
+        metric_keys = ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]
         pt = PrettyTable(metric_keys, title="Summary")
         metric = self._current_metric
         pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
@@ -185,7 +188,7 @@ class CexAccounts:
                     f"{account.hold_price:.3f}",
                     f"{account.used_margin:.3f}",
                     f"{account.trade_pnl:.3f}",
-                    f"{account.funding_pnl:.3f}",
+                    f"{account.fund_pnl:.3f}",
                 )
             )
         print(pt)
