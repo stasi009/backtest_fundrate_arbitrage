@@ -4,25 +4,22 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-@dataclass
 class FeedOnce:
-    timestamp: datetime = None
-    prices: dict[str, dict[str, float]] = {}
-    funding_rates: dict[str, dict[str, float]] = {}
+    def __init__(self) -> None:
+        self.timestamp: datetime = None
+        self.prices: dict[str, dict[str, float]] = {}
+        self.funding_rates: dict[str, dict[str, float]] = {}
 
 
 class DataFeeds:
     def __init__(self, data_dir: Path, cex_list: list[str], symbol_list: list[str]) -> None:
-        self._data_dir = data_dir
-        self._cex_list = cex_list
         self._datas = {}
         self._symbol_list = symbol_list
         self._index = 0
+        
         self._total_rows = None
-
-    def load(self):
-        for cex in self._cex_list:
-            fname = self._data_dir / f"{cex}.csv"
+        for cex in cex_list:
+            fname = data_dir / f"{cex}.csv"
             df = pd.read_csv(fname, index_col="timestamp", parse_dates=True)
 
             if self._total_rows is None:
@@ -33,7 +30,7 @@ class DataFeeds:
             self._datas[cex] = df
 
     def __iter__(self):
-        raise NotImplementedError()
+        return self
 
     def __next__(self):
         if self._index >= self._total_rows:
@@ -45,9 +42,9 @@ class DataFeeds:
             row = df.iloc[self._index, :]
 
             if feed.timestamp is None:
-                feed.timestamp = row.index
+                feed.timestamp = row.name.to_pydatetime()
             else:
-                assert feed.timestamp == row.index
+                assert feed.timestamp == row.name.to_pydatetime()
 
             feed.prices[cex] = {symbol: row[symbol + "_price"] for symbol in self._symbol_list}
             feed.funding_rates[cex] = {symbol: row[symbol + "_fundrate"] for symbol in self._symbol_list}

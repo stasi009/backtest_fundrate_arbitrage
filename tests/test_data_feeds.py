@@ -1,6 +1,8 @@
 import pandas as pd
 from datetime import datetime, timedelta
 from pathlib import Path
+from simulator.data_feeds import DataFeeds
+from pprint import pprint
 
 
 def mock_dataframe(cex: str, num_rows: int, symbols: list[str]):
@@ -16,17 +18,31 @@ def mock_dataframe(cex: str, num_rows: int, symbols: list[str]):
 
         rows.append(row)
 
+    df = pd.DataFrame(rows)
+    df.set_index("timestamp", inplace=True)
+
     data_folder = Path("data/test")
     data_folder.mkdir(exist_ok=True)
-    pd.DataFrame(rows).to_csv(data_folder / f"{cex}.csv")
-    print(f'CEX[{cex}] mock data is dumped')
+    df.to_csv(data_folder / f"{cex}.csv", index_label="timestamp")
+    print(f"CEX[{cex}] mock data is dumped")
 
 
 def create_mock_datas():
     symbols = ["A", "B", "C"]
     for cex in ["binance", "okx", "bitget"]:
         mock_dataframe(cex=cex, num_rows=10, symbols=symbols)
-        
+
+
+def test_data_feeds():
+    feeds = DataFeeds(
+        data_dir=Path("data/test"), cex_list=["binance", "okx", "bitget"], symbol_list=["A", "B", "C"]
+    )
+    for idx, feed in enumerate(feeds,start=1):
+        print(f"\n------------{idx}: {feed.timestamp}")
+        pprint(feed.prices)
+        pprint(feed.funding_rates)
+
 
 if __name__ == "__main__":
-    create_mock_datas()
+    # create_mock_datas()
+    test_data_feeds()
