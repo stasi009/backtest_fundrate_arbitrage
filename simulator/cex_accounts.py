@@ -14,8 +14,9 @@ class PerpsAccount:
         self.margin_rate = margin_rate
         self.used_margin = 0
 
-        self.pnl = 0  # unrealized PnL永远都是暂时的，随着mark to market，都要落实成realized PnL
-        self.funding_amount = 0  # 根据funding rate带来的支出或收入
+        # unrealized PnL永远都是暂时的，随着mark to market，都要落实成realized PnL
+        self.trade_pnl = 0  #由买卖产生的PnL
+        self.funding_pnl = 0  # 根据funding rate带来的支出或收入
 
 
 class NotEnoughMargin(Exception):
@@ -58,7 +59,7 @@ class CexAccounts:
         # is_long<0，卖出平仓，说明平的是多仓，price > hold_price才profit
         pnl = -is_long * (price - account.hold_price) * shares
         self.__update_cash(pnl, need_margincall=False)
-        account.pnl += pnl
+        account.trade_pnl += pnl
 
         reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
         account.used_margin -= reduce_margin  # 释放保证金
@@ -91,7 +92,7 @@ class CexAccounts:
 
         fee = price * shares * self._commission
         self.__update_cash(-fee, need_margincall=False)
-        account.pnl -= fee
+        account.trade_pnl -= fee
 
         if close_shares > 0:  # 先平仓
             self._close(symbol=symbol, is_long=is_long, price=price, shares=shares)
@@ -116,7 +117,7 @@ class CexAccounts:
         total_pnl = 0
         for _, account in self._perps_accounts.items():
             total_used_margin += account.used_margin
-            total_pnl += account.pnl
+            total_pnl += account.trade_pnl+account.funding_pnl
         total_value = self._cash + total_used_margin
         assert abs(self.__init_cash + total_pnl - total_value) < 1e-6
 
@@ -144,7 +145,7 @@ class CexAccounts:
             # long_short_shares<0，持有空仓，price<hold_price才profit
             pnl = (price - account.hold_price) * account.long_short_shares
             self.__update_cash(pnl, need_margincall=True)
-            account.pnl += pnl
+            account.trade_pnl += pnl
             account.hold_price = price  # mark to market
 
             # ----------- new margin requirement
@@ -174,7 +175,7 @@ class CexAccounts:
         print(pt)
         # ---------- each account
         pt = PrettyTable(
-            ["Symbol", "Shares", "HoldPrice", "UsedMargin", "PnL", "FundAmount"], title="Perps Accounts"
+            ["Symbol", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"], title="Perps Accounts"
         )
         for symbol, account in self._perps_accounts.items():
             pt.add_row(
@@ -183,8 +184,8 @@ class CexAccounts:
                     f"{account.long_short_shares:.3f}",
                     f"{account.hold_price:.3f}",
                     f"{account.used_margin:.3f}",
-                    f"{account.pnl:.3f}",
-                    f"{account.funding_amount:.3f}",
+                    f"{account.trade_pnl:.3f}",
+                    f"{account.funding_pnl:.3f}",
                 )
             )
         print(pt)
