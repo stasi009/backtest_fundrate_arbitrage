@@ -78,7 +78,7 @@ class CexAccounts:
         account.long_short_shares += is_long * shares
         account.hold_price = total_cost / abs(account.long_short_shares)
 
-    def _trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
+    def trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
         account = self._perps_accounts[symbol]
 
         if is_long * account.long_short_shares >= 0:  # 本次交易方向与目前持仓方向相同，无需先平仓
@@ -98,10 +98,10 @@ class CexAccounts:
             self._open(symbol=symbol, is_long=is_long, price=price, shares=shares)
 
     def buy(self, symbol: str, price: float, shares: float):
-        self._trade(symbol=symbol, is_long=1, price=price, shares=shares)
+        self.trade(symbol=symbol, is_long=1, price=price, shares=shares)
 
     def sell(self, symbol: str, price: float, shares: float):
-        self._trade(symbol=symbol, is_long=-1, price=price, shares=shares)
+        self.trade(symbol=symbol, is_long=-1, price=price, shares=shares)
 
     def clear(self, symbol: str, price: float):
         account = self._perps_accounts[symbol]
@@ -154,9 +154,21 @@ class CexAccounts:
             self.__update_cash(-margin_diff, need_margincall=True)
             account.used_margin += margin_diff
             
-    def funding_settle(self,mark_prices,funding_rate):
+    def funding_settle(self,mark_prices:dict[str,float],funding_rates:dict[str,float]):
         for symbol, account in self._perps_accounts.items():
-            pass
+            mark_price = mark_prices[symbol]
+            funding_rate = funding_rates[symbol]
+            if np.isnan(mark_price) or np.isnan(funding_rate):
+                continue
+            
+            # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
+            # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
+            # long_short_shares<0==>short position, funding_rate<0==>short pay long, pnl<0
+            # long_short_shares<0==>short position, funding_rate>0==>long pay short, pnl>0
+            pnl = -funding_rate * account.long_short_shares * mark_price
+            self.__update_cash(pnl,need_margincall=True)
+            account.fund_pnl += pnl
+            
 
     def record_metric(self, timestamp) -> None:
         # ------------ calculate metrics
