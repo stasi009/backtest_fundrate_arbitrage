@@ -106,7 +106,7 @@ class CexAccounts:
     def clear(self, symbol: str, price: float):
         account = self._perps_accounts[symbol]
         is_long = 1 if account.long_short_shares < 0 else -1  # 平仓时的交易方向肯定与当前持仓方向相反
-        self._trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
+        self.trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
 
     @property
     def _current_metric(self):
