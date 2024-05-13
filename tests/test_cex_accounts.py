@@ -11,13 +11,13 @@ def test1():
     cex.inspect()
 
     cex.settle(datetime.now(), prices={"A": 120, "B": 50})
+    cex.inspect('settle')
+    
+    cex.clear("B", price=59)
     cex.inspect()
 
     cex.settle(datetime.now(), prices={"A": 90, "B": 80})
-    cex.inspect()
-
-    cex.clear("B", price=59)
-    cex.inspect()
+    cex.inspect('settle')
 
     print(cex.metric_history)
 
