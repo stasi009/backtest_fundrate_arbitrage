@@ -1,22 +1,19 @@
 import numpy as np
 import pandas as pd
 import logging
+from dataclasses import dataclass,replace
 from prettytable import PrettyTable
 
 
+@dataclass
 class PerpsAccount:
-    def __init__(self, symbol: str, margin_rate: float) -> None:
-        self.symbol = symbol
-
-        self.long_short_shares = 0  # >0, long; <0, short.之所以不叫shares，提醒我这个shares能正能负
-        self.hold_price = 0
-
-        self.margin_rate = margin_rate
-        self.used_margin = 0
-
-        # unrealized PnL永远都是暂时的，随着mark to market，都要落实成realized PnL
-        self.trade_pnl = 0  # 由买卖产生的PnL
-        self.fund_pnl = 0  # 根据funding rate带来的支出或收入
+    symbol: str
+    margin_rate: float
+    long_short_shares = 0  # >0, long; <0, short.之所以不叫shares，提醒我这个shares能正能负
+    hold_price = 0
+    used_margin = 0
+    trade_pnl = 0  # 由买卖产生的PnL
+    fund_pnl = 0  # 根据funding rate带来的支出或收入
 
 
 class NotEnoughMargin(Exception):
@@ -28,11 +25,11 @@ class CexAccounts:
     def __init__(
         self, name: str, init_cash: float, symbol_infos: dict[str, float], commission=0.00005
     ) -> None:
-        self._name = name
+        self.name = name
 
         self.__init_cash = init_cash
         self._cash = init_cash  # 可用资金
-        self._commission = commission
+        self.commission = commission
 
         self._perps_accounts = {
             symbol: PerpsAccount(symbol, margin_rate) for symbol, margin_rate in symbol_infos.items()
@@ -90,7 +87,7 @@ class CexAccounts:
             close_shares = min(abs(account.long_short_shares), shares)
         open_shares = shares - close_shares
 
-        fee = price * shares * self._commission
+        fee = price * shares * self.commission
         self.__update_cash(-fee, need_margincall=False)
         account.trade_pnl -= fee
 
@@ -156,6 +153,10 @@ class CexAccounts:
             margin_diff = new_margin - account.used_margin
             self.__update_cash(-margin_diff, need_margincall=True)
             account.used_margin += margin_diff
+            
+    def funding_settle(self,mark_prices,funding_rate):
+        for symbol, account in self._perps_accounts.items():
+            pass
 
     def record_metric(self, timestamp) -> None:
         # ------------ calculate metrics
