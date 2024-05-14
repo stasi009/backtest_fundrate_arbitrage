@@ -61,11 +61,13 @@ class FundingArbitrageTrade:
         self.is_active = False
 
     def open(self, usd_amount: float, prices: dict[str, float]):
+        assert not self.is_active
         for k in ["long", "short"]:
             self._orders[k].open(usd_amount=usd_amount, price=prices[k])
         self.is_active = True
 
     def close(self, prices: dict[str, float]):
+        assert self.is_active
         for k in ["long", "short"]:
             self._orders[k].close(price=prices[k])
         self.is_active = False
