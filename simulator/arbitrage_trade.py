@@ -1,5 +1,5 @@
 from simulator.cex_accounts import CexAccounts
-
+from datetime import datetime
 
 class Order:
     def __init__(self, symbol: str, cex: CexAccounts, is_long: int) -> None:
@@ -59,6 +59,8 @@ class FundingArbitrageTrade:
         }
 
         self.is_active = False
+        self.open_time: datetime = None 
+        self.close_time: datetime = None
         
     def get_order(self,direction):
         return self._orders[direction]

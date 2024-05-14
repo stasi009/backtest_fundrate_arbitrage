@@ -13,7 +13,8 @@ class Config:
     commission: float
 
     ordersize_usd: float
-    min_fundrate_diff: float
+    fundrate_diff_open: float  # funding rate diff > this threshold, open trades
+    fundrate_diff_close: float  # funding rate diff < this threshold, close trades
 
     data_dir: Path
     cex_list: list[str]
@@ -46,8 +47,7 @@ class FundingArbitrageStrategy:
                 commission=config.commission,
             )
 
-        self._trades:list[FundingArbitrageTrade] = []
-        self._holding_contracts = set()
+        self._trades: list[FundingArbitrageTrade] = []
 
     def __best_arbpair_4symbol(self, symbol, funding_rates: dict[str, dict[str, float]]):
         max_frate_diff = 0
@@ -70,13 +70,18 @@ class FundingArbitrageStrategy:
         return ArbPair(symbol=symbol, buy_cex=buy_cex, sell_cex=sell_cex, fundrate_diff=max_frate_diff)
 
     def __is_holding(self, cex, symbol):
-        return (symbol + "@" + cex) in self._holding_contracts
+        for trade in self._trades:
+            if not trade.is_active:
+                continue
+            
+            buy_cex = trade.get_order('long').cex_name
+            sell_cex = trade.get_order('short').cex_name
+            
+            if symbol == trade.symbol and (buy_cex == cex or sell_cex==cex):
+                return True
+            
+        return False
 
-    def __hold(self, cex, symbol):
-        self._holding_contracts.add(symbol + "@" + cex)
-
-    def __unhold(self, cex, symbol):
-        self._holding_contracts.remove(symbol + "@" + cex)
 
     def open_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
         """
@@ -86,9 +91,9 @@ class FundingArbitrageStrategy:
         for symbol in self._config.symbol_list:
             arbpair = self.__best_arbpair_4symbol(symbol=symbol, funding_rates=funding_rates)
 
-            if arbpair.fundrate_diff < self._config.min_fundrate_diff:
+            if arbpair.fundrate_diff < self._config.fundrate_diff_open:
                 logging.info(
-                    f"drop {arbpair} because its fundrate_diff < expected {self._config.min_fundrate_diff}"
+                    f"drop {arbpair} because its fundrate_diff < expected {self._config.fundrate_diff_open}"
                 )
                 continue
 
@@ -112,19 +117,30 @@ class FundingArbitrageStrategy:
                 },
             )
             self._trades.append(trade)
-            
-            self.__hold(cex=arbpair.buy_cex, symbol=symbol)
-            self.__hold(cex=arbpair.sell_cex, symbol=symbol)
-            
+
+
+
     def close_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
+
         for trade in self._trades:
-            if not trade.is_active :
+            if not trade.is_active:
                 continue
-            
-            buyside_frate = trade.get_order('long').cex_name
-            
-            
+
+            buy_cex = trade.get_order("long").cex_name
+            buyside_frate = funding_rates[buy_cex][trade.symbol]
+
+            sell_cex = trade.get_order("short").cex_name
+            sellside_frate = funding_rates[sell_cex][trade.symbol]
+
+            # TODO:目前只有一个终止退出的条件，就是发现套利机会消失，未来可以增加更多的止盈+止损条件
+            if sellside_frate - buyside_frate < self._config.fundrate_diff_close:
+                trade.close(
+                    prices={
+                        "long": prices[buy_cex][trade.symbol],
+                        "short": prices[sell_cex][trade.symbol],
+                    }
+                )
 
     def run(self):
         for feed in self._data_feeds:
-            pass
+            self.open_trades()
