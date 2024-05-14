@@ -11,6 +11,8 @@ class Config:
     init_cash: float
     margin_rate: float
     commission: float
+
+    ordersize_usd: float
     min_fundrate_diff: float
 
     data_dir: Path
@@ -76,7 +78,7 @@ class Strategy:
     def __unhold(self, cex, symbol):
         self._holding_contracts.remove(symbol + "@" + cex)
 
-    def open_trades(self, funding_rates: dict[str, dict[str, float]]):
+    def open_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
         """
         Args:
             funding_rates (dict[str,dict[str,float]]): out-key=cex, inner dict: symbol->funding rate
@@ -85,10 +87,12 @@ class Strategy:
             arbpair = self.__best_arbpair_4symbol(symbol=symbol, funding_rates=funding_rates)
 
             if arbpair.fundrate_diff < self._config.min_fundrate_diff:
-                logging.info(f"drop {arbpair} because its fundrate_diff < expected {self._config.min_fundrate_diff}")
+                logging.info(
+                    f"drop {arbpair} because its fundrate_diff < expected {self._config.min_fundrate_diff}"
+                )
                 continue
 
-            # TODO: 这里是否还有改进的空间，一个cex可能在不同时间增加了多个对方手
+            # TODO: 这里是否还有改进的空间，一个cex可能在不同时间增加了多个对手方
             if self.__is_holding(cex=arbpair.buy_cex, symbol=symbol):
                 continue
 
@@ -100,8 +104,17 @@ class Strategy:
                 long_cex=self._cexs[arbpair.buy_cex],
                 short_cex=self._cexs[arbpair.sell_cex],
             )
+            trade.open(
+                usd_amount=self._config.ordersize_usd,
+                prices={
+                    "long": prices[arbpair.buy_cex][symbol],
+                    "short": prices[arbpair.sell_cex][symbol],
+                },
+            )
             self._trades.append(trade)
-            trade.open()
+            
+            self.__hold(cex=arbpair.buy_cex, symbol=symbol)
+            self.__hold(cex=arbpair.sell_cex, symbol=symbol)
 
     def run(self):
         for feed in self._data_feeds:

@@ -67,7 +67,7 @@ class CexAccounts:
         # 另外，平仓时不用更新hold price，因为PnL被转移到cash账户中了，不在资产帐户中
         account.long_short_shares += is_long * shares
         
-        logging.info(f'CEX[{self.name}] CLOSE {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
+        logging.info(f'CEX[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
 
     def _open(self, symbol: str, is_long: int, price: float, shares: float):
         account = self._perps_accounts[symbol]
@@ -80,7 +80,7 @@ class CexAccounts:
         account.long_short_shares += is_long * shares
         account.hold_price = total_cost / abs(account.long_short_shares)
         
-        logging.info(f'CEX[{self.name}] OPEN {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
+        logging.info(f'CEX[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
 
     def trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
         account = self._perps_accounts[symbol]
