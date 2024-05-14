@@ -59,6 +59,9 @@ class FundingArbitrageTrade:
         }
 
         self.is_active = False
+        
+    def get_order(self,direction):
+        return self._orders[direction]
 
     def open(self, usd_amount: float, prices: dict[str, float]):
         assert not self.is_active

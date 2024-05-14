@@ -28,7 +28,7 @@ class ArbPair:
     fundrate_diff: float
 
 
-class Strategy:
+class FundingArbitrageStrategy:
     def __init__(self, config: Config) -> None:
         self._config = config
 
@@ -46,7 +46,7 @@ class Strategy:
                 commission=config.commission,
             )
 
-        self._trades = []
+        self._trades:list[FundingArbitrageTrade] = []
         self._holding_contracts = set()
 
     def __best_arbpair_4symbol(self, symbol, funding_rates: dict[str, dict[str, float]]):
@@ -115,6 +115,15 @@ class Strategy:
             
             self.__hold(cex=arbpair.buy_cex, symbol=symbol)
             self.__hold(cex=arbpair.sell_cex, symbol=symbol)
+            
+    def close_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
+        for trade in self._trades:
+            if not trade.is_active :
+                continue
+            
+            buyside_frate = trade.get_order('long').cex_name
+            
+            
 
     def run(self):
         for feed in self._data_feeds:
