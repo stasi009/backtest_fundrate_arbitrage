@@ -100,7 +100,7 @@ class FundingArbitrageStrategy:
                 continue
 
             trade = FundingArbitrageTrade(
-                contract=symbol,
+                symbol=symbol,
                 long_cex=self._cexs[arbpair.buy_cex],
                 short_cex=self._cexs[arbpair.sell_cex],
             )

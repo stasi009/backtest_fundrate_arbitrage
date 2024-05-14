@@ -2,8 +2,8 @@ from simulator.cex_accounts import CexAccounts
 
 
 class Order:
-    def __init__(self, contract: str, cex: CexAccounts, is_long: int) -> None:
-        self._contract = contract
+    def __init__(self, symbol: str, cex: CexAccounts, is_long: int) -> None:
+        self._symbol = symbol
         self._cex = cex
         self._is_long = is_long
 
@@ -19,11 +19,11 @@ class Order:
     def open(self, usd_amount: float, price: float):
         self._shares = usd_amount / price
         self._open_price = price
-        self._cex.trade(symbol=self._contract, is_long=self._is_long, price=price, shares=self._shares)
+        self._cex.trade(symbol=self._symbol, is_long=self._is_long, price=price, shares=self._shares)
 
     def close(self, price: float):
         # is_long=-self._is_long，平仓时的交易方向与持仓方向相反
-        self._cex.trade(symbol=self._contract, is_long=-self._is_long, price=price, shares=self._shares)
+        self._cex.trade(symbol=self._symbol, is_long=-self._is_long, price=price, shares=self._shares)
         self._close_price = price
 
     def accumulate_funding(self, mark_price, funding_rate):
@@ -50,12 +50,12 @@ class Order:
 
 
 class FundingArbitrageTrade:
-    def __init__(self, contract: str, long_cex: CexAccounts, short_cex: CexAccounts) -> None:
-        self._contract = contract  # 为了对冲，symbol肯定是唯一的
+    def __init__(self, symbol: str, long_cex: CexAccounts, short_cex: CexAccounts) -> None:
+        self.symbol = symbol  # 为了对冲，symbol肯定是唯一的
 
         self._orders = {
-            "long": Order(contract=contract, cex=long_cex, is_long=1),
-            "short": Order(contract=contract, cex=short_cex, is_long=-1),
+            "long": Order(symbol=symbol, cex=long_cex, is_long=1),
+            "short": Order(symbol=symbol, cex=short_cex, is_long=-1),
         }
 
         self.is_active = False
