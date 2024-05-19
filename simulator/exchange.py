@@ -1,19 +1,41 @@
 import numpy as np
 import pandas as pd
 import logging
-from dataclasses import dataclass,replace
 from prettytable import PrettyTable
+from enum import Enum
+
+# 资金变化反映在哪个会议科目上
+CashItem = Enum("CashItem", ["MARGIN", "TRADE_PNL", "FUND_PNL"])
 
 
-@dataclass
 class PerpsAccount:
-    symbol: str
-    margin_rate: float
-    long_short_shares = 0  # >0, long; <0, short.之所以不叫shares，提醒我这个shares能正能负
-    hold_price = 0
-    used_margin = 0
-    trade_pnl = 0  # 由买卖产生的PnL
-    fund_pnl = 0  # 根据funding rate带来的支出或收入
+    def __init__(self, symbol: str, margin_rate: float, cash_callback) -> None:
+        self.symbol = symbol
+        self.margin_rate = margin_rate
+
+        self.long_short_shares = 0  # >0, long; <0, short.之所以不叫shares，提醒我这个shares能正能负
+        self.hold_price = 0
+        self.used_margin = 0
+        self.trade_pnl = 0  # 由买卖产生的PnL
+        self.fund_pnl = 0  # 根据funding rate带来的支出或收入
+
+        self._cash_callback = cash_callback
+
+    def update(self, cash_item: CashItem, delta_cash: float, margin_call: bool = True):
+        """account账户下的cash_item这个会计科目，导致了delta_cash的资金变化"""
+        self._cash_callback(delta_cash, margin_call)
+
+        match cash_item:
+            case CashItem.MARGIN:
+                # delta_cash>0，cash账户增加，是因为释放保证金，所以used_margin减少
+                # delta_cash<0，cash账户减少，是因为追加保证金，所以used_margin增加
+                self.used_margin -= delta_cash
+            case CashItem.TRADE_PNL:
+                self.trade_pnl += delta_cash  # PnL的变化应该与cash变化同向
+            case CashItem.FUND_PNL:
+                self.fund_pnl += delta_cash
+            case _:
+                raise ValueError(f"Unknown CashItem={cash_item}")
 
 
 class NotEnoughMargin(Exception):
@@ -35,21 +57,17 @@ class Exchange:
         self.commission = commission
 
         self._perps_accounts = {
-            symbol: PerpsAccount(symbol, margin_rate) for symbol, margin_rate in symbol_infos.items()
+            symbol: PerpsAccount(symbol, margin_rate, cash_callback=self._update_cash)
+            for symbol, margin_rate in symbol_infos.items()
         }
 
         self._metrics = []
 
-    def __update_cash(self, delta_cash: float, need_margincall: bool):
-        """
-        need_margincall的设置标准
-        - 如果是主动交易行为，设置need_margincall=False，因为我们干脆放弃这次交易就好了，就不会触发margin call了
-        - 如果是mark to market导致的保证金不足，就一定要触发margin call，终止回测
-        """
+    def _update_cash(self, delta_cash: float, margin_call: bool):
         temp = self._cash + delta_cash
         if temp <= 0:
             logging.critical(f"Not Enough Margin: original cash={self._cash},delta_cash={delta_cash}")
-            raise NotEnoughMargin(need_margincall)
+            raise NotEnoughMargin(margin_call)
         self._cash = temp
 
     def _close(self, symbol: str, is_long: int, price: float, shares: float):
@@ -58,34 +76,35 @@ class Exchange:
         # is_long>0，买入平仓，说明平的是空仓，price < hold_price才profit
         # is_long<0，卖出平仓，说明平的是多仓，price > hold_price才profit
         pnl = -is_long * (price - account.hold_price) * shares
-        self.__update_cash(pnl, need_margincall=False)
-        account.trade_pnl += pnl
+        account.update(cash_item=CashItem.TRADE_PNL, delta_cash=pnl)
 
         reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
-        account.used_margin -= reduce_margin  # 释放保证金
-        self.__update_cash(reduce_margin, need_margincall=False)
+        account.update(cash_item=CashItem.MARGIN, delta_cash=reduce_margin)
 
         # is_long>0，买入平仓，说明平的是空仓，原来的long_short_shares<0，加上正shares，持仓才变小
         # is_long<0，卖出平仓，说明平的是多仓，原来的long_short_shares>0，加上负shares，持仓才变小
         # 另外，平仓时不用更新hold price，因为PnL被转移到cash账户中了，不在资产帐户中
         account.long_short_shares += is_long * shares
-        
-        logging.info(f'[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
+
+        logging.info(
+            f"[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares"
+        )
 
     def _open(self, symbol: str, is_long: int, price: float, shares: float):
         account = self._perps_accounts[symbol]
 
         new_margin = shares * price * account.margin_rate  # 新建仓位需要的保证金
-        self.__update_cash(-new_margin, need_margincall=False)
-        account.used_margin += new_margin
+        account.update(cash_item=CashItem.MARGIN, delta_cash=-new_margin)
 
         total_cost = abs(account.long_short_shares) * account.hold_price + shares * price
         account.long_short_shares += is_long * shares
         new_hold_price = total_cost / abs(account.long_short_shares)
         assert 0 < new_hold_price < account.hold_price
-        
+
         account.hold_price = new_hold_price
-        logging.info(f'[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares')
+        logging.info(
+            f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares"
+        )
 
     def trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
         account = self._perps_accounts[symbol]
@@ -97,8 +116,7 @@ class Exchange:
         open_shares = shares - close_shares
 
         fee = price * shares * self.commission
-        self.__update_cash(-fee, need_margincall=False)
-        account.trade_pnl -= fee
+        account.update(cash_item=CashItem.TRADE_PNL, delta_cash=-fee)
 
         if close_shares > 0:  # 先平仓
             self._close(symbol=symbol, is_long=is_long, price=price, shares=shares)
@@ -153,31 +171,27 @@ class Exchange:
             # long_short_shares>0，持有多仓，price>hold_price才profit
             # long_short_shares<0，持有空仓，price<hold_price才profit
             pnl = (price - account.hold_price) * account.long_short_shares
-            self.__update_cash(pnl, need_margincall=True)
-            account.trade_pnl += pnl
+            account.update(cash_item=CashItem.TRADE_PNL, delta_cash=pnl)
             account.hold_price = price  # mark to market
 
             # ----------- new margin requirement
             new_margin = abs(account.long_short_shares) * price * account.margin_rate
             margin_diff = new_margin - account.used_margin
-            self.__update_cash(-margin_diff, need_margincall=True)
-            account.used_margin += margin_diff
-            
-    def funding_settle(self,mark_prices:dict[str,float],funding_rates:dict[str,float]):
+            account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
+
+    def funding_settle(self, mark_prices: dict[str, float], funding_rates: dict[str, float]):
         for symbol, account in self._perps_accounts.items():
             mark_price = mark_prices[symbol]
             funding_rate = funding_rates[symbol]
             if np.isnan(mark_price) or np.isnan(funding_rate):
                 continue
-            
+
             # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
             # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
             # long_short_shares<0==>short position, funding_rate<0==>short pay long, pnl<0
             # long_short_shares<0==>short position, funding_rate>0==>long pay short, pnl>0
             pnl = -funding_rate * account.long_short_shares * mark_price
-            self.__update_cash(pnl,need_margincall=True)
-            account.fund_pnl += pnl
-            
+            account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
 
     def record_metric(self, timestamp) -> None:
         # ------------ calculate metrics
