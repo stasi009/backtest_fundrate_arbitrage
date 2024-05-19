@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from simulator.data_feeds import DataFeeds
-from simulator.accounts import Accounts
+from simulator.exchange import Exchange
 from simulator.arbitrage_trade import FundingArbitrageTrade
 import logging
 
@@ -40,7 +40,7 @@ class FundingArbitrageStrategy:
         self._cexs = {}
         for cex_name in config.cex_list:
             symbol_infos = {s: config.margin_rate for s in config.symbol_list}
-            self._cexs[cex_name] = Accounts(
+            self._cexs[cex_name] = Exchange(
                 name=cex_name,
                 init_cash=config.init_cash / len(config.cex_list),
                 symbol_infos=symbol_infos,
