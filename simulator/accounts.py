@@ -18,6 +18,9 @@ class PerpsAccount:
 
 class NotEnoughMargin(Exception):
     def __init__(self, margin_call: bool) -> None:
+        # margin_call: False，catch后，执行一些逻辑，程序可以继续。主要用于由用户主动行为（比如开仓）触发的“可能”margin call，此时用户只要放弃想执行的动作即可
+        # TODO: 但是由于不能执行原子动作，catch这个异常后，需要回退的东西太多了，而如果不能正确回退，那让程序继续也没有意义
+        # margin_call: True，不能catch后让程序继续，必须停止程序。主要用于mark-to-market导致的被动margin call
         self.margin_call = margin_call
 
 
