@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from simulator.data_feeds import DataFeeds
-from simulator.cex_accounts import CexAccounts
+from simulator.accounts import CexAccounts
 from simulator.arbitrage_trade import FundingArbitrageTrade
 import logging
 

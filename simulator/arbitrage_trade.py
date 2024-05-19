@@ -1,4 +1,4 @@
-from simulator.cex_accounts import CexAccounts
+from simulator.accounts import CexAccounts
 from datetime import datetime
 
 class Order:
