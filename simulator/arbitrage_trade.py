@@ -1,8 +1,8 @@
-from simulator.accounts import CexAccounts
+from simulator.accounts import Accounts
 from datetime import datetime
 
 class Order:
-    def __init__(self, symbol: str, cex: CexAccounts, is_long: int) -> None:
+    def __init__(self, symbol: str, cex: Accounts, is_long: int) -> None:
         self._symbol = symbol
         self._cex = cex
         self._is_long = is_long
@@ -50,7 +50,7 @@ class Order:
 
 
 class FundingArbitrageTrade:
-    def __init__(self, symbol: str, long_cex: CexAccounts, short_cex: CexAccounts) -> None:
+    def __init__(self, symbol: str, long_cex: Accounts, short_cex: Accounts) -> None:
         self.symbol = symbol  # 为了对冲，symbol肯定是唯一的
 
         self._orders = {

@@ -21,7 +21,7 @@ class NotEnoughMargin(Exception):
         self.margin_call = margin_call
 
 
-class CexAccounts:
+class Accounts:
     def __init__(
         self, name: str, init_cash: float, symbol_infos: dict[str, float], commission=0.00005
     ) -> None:
