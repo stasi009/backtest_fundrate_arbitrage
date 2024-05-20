@@ -166,7 +166,7 @@ class Exchange:
         """
         for symbol, account in self._perps_accounts.items():
             price = prices[symbol]
-            if pd.isnan(price):
+            if pd.isna(price):
                 continue
 
             # ----------- mark to market
@@ -185,7 +185,7 @@ class Exchange:
         for symbol, account in self._perps_accounts.items():
             mark_price = mark_prices[symbol]
             funding_rate = funding_rates[symbol]
-            if pd.isnan(mark_price) or pd.isnan(funding_rate):
+            if pd.isna(mark_price) or pd.isna(funding_rate):
                 continue
 
             # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
