@@ -1,123 +1,114 @@
 from dataclasses import dataclass
+from typing import Tuple
 from pathlib import Path
 from simulator.data_feeds import DataFeeds
 from simulator.exchange import Exchange
-from simulator.arbitrage_trade import FundingArbitrageTrade
+from simulator.arbitrage_trade import FundingArbTrade
+from simulator.config import Config
 import logging
-
-
-@dataclass
-class Config:
-    init_cash: float
-    margin_rate: float
-    commission: float
-
-    ordersize_usd: float
-    fundrate_diff_open: float  # funding rate diff > this threshold, open trades
-    fundrate_diff_close: float  # funding rate diff < this threshold, close trades
-
-    data_dir: Path
-    cex_list: list[str]
-    symbol_list: list[str]
-
+    
 
 @dataclass
 class ArbPair:
     symbol: str
-    buy_cex: str
-    sell_cex: str
+    long_ex: str
+    short_cex: str
     fundrate_diff: float
 
 
-class FundingArbitrageStrategy:
+class FundingArbStrategy:
     def __init__(self, config: Config) -> None:
         self._config = config
 
         self._data_feeds = DataFeeds(
-            data_dir=config.data_dir, cex_list=config.cex_list, symbol_list=config.symbol_list
+            data_dir=config.data_dir, exchanges=config.exchanges, markets=config.markets
         )
 
-        self._cexs = {}
-        for cex_name in config.cex_list:
-            symbol_infos = {s: config.margin_rate for s in config.symbol_list}
-            self._cexs[cex_name] = Exchange(
-                name=cex_name,
-                init_cash=config.init_cash / len(config.cex_list),
-                markets=symbol_infos,
+        self._exchanges = {
+            ex_name: Exchange(
+                name=ex_name,
+                init_cash=config.init_cash / len(config.exchanges),
+                markets={m: config.margin_rate for m in config.markets},
                 commission=config.commission,
             )
+            for ex_name in config.exchanges
+        }
 
-        self._trades: list[FundingArbitrageTrade] = []
+        self._active_arb_trades: dict[str, FundingArbTrade] = {}  # market --> trade
+        self._closed_trades: list[FundingArbTrade] = {}
 
-    def __best_arbpair_4symbol(self, symbol, funding_rates: dict[str, dict[str, float]]):
+    def _best_arb_pair(self, market:str, ex_fundrates: dict[str, float]) -> ArbPair:
+        """
+        funding_rates: exchange -> price / funding rate
+        """
         max_frate_diff = 0
-        buy_cex = None
-        sell_cex = None
-        for ii in range(len(self._config.cex_list)):
-            cex1_name = self._config.cex_list[ii]
-            fundrate1 = funding_rates[cex1_name][symbol]
+        long_ex = None
+        short_ex = None
+        for ii in range(len(self._config.exchanges)):
+            ex1_name = self._config.exchanges[ii]
+            fundrate1 = ex_fundrates[ex1_name]
 
-            for jj in range(ii + 1, len(self._config.cex_list)):
-                cex2_name = self._config.cex_list[jj]
-                fundrate2 = funding_rates[cex2_name][symbol]
+            for jj in range(ii + 1, len(self._config.exchanges)):
+                ex2_name = self._config.exchanges[jj]
+                fundrate2 = ex_fundrates[ex2_name]
 
                 frate_diff = abs(fundrate1 - fundrate2)
                 if frate_diff > max_frate_diff:
-                    buy_cex = cex1_name if fundrate1 < fundrate2 else cex2_name
-                    sell_cex = cex2_name if fundrate1 < fundrate2 else cex1_name
+                    long_ex = ex1_name if fundrate1 < fundrate2 else ex2_name
+                    short_ex = ex2_name if fundrate1 < fundrate2 else ex1_name
                     max_frate_diff = frate_diff
 
-        return ArbPair(symbol=symbol, buy_cex=buy_cex, sell_cex=sell_cex, fundrate_diff=max_frate_diff)
+        return long_ex, short_ex, max_frate_diff
 
-    def __is_holding(self, cex, symbol):
-        for trade in self._trades:
-            if not trade.is_active:
-                continue
+    def __open(self, market: str, long_ex: str, short_ex: str, fundrate_diff: float):
+        """返回两个trade，第1个是要关闭的trade，第2个是要开仓或加仓的trade"""
+        new_trade = FundingArbTrade(
+            market=market,
+            long_ex=self._exchanges[long_ex],
+            short_ex=self._exchanges[short_ex],
+        )
 
-            buy_cex = trade.get_order("long").ex_name
-            sell_cex = trade.get_order("short").ex_name
+        if market not in self._active_arb_trades:
+            self._active_arb_trades[market] = new_trade
+            print(f"open new trade: {new_trade.name}")
+            return None, new_trade
 
-            if symbol == trade.market and (buy_cex == cex or sell_cex == cex):
-                return True
+        old_trade = self._active_arb_trades[market]
 
-        return False
+        if (old_trade.name == new_trade.name) and (
+            fundrate_diff >= old_trade.open_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
+        ):
+            print(f"increase position on {new_trade.name}")
+            return None, old_trade  # 加仓
 
-    def open_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
+        if (old_trade.name != new_trade.name) and (
+            fundrate_diff >= old_trade.latest_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
+        ):
+            print(f"change trade from {old_trade.name} to {new_trade.name}")
+            # 关闭active_trade，开仓new_trade
+            return old_trade, new_trade
+
+    def open(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
         """
         Args:
-            funding_rates (dict[str,dict[str,float]]): out-key=cex, inner dict: symbol->funding rate
+            prices:        out-key=market, inner dict: exchange->price
+            funding_rates: out-key=market, inner dict: exchange->funding rate
         """
-        for symbol in self._config.symbol_list:
-            arbpair = self.__best_arbpair_4symbol(symbol=symbol, funding_rates=funding_rates)
-
-            if arbpair.fundrate_diff < self._config.fundrate_diff_open:
-                logging.info(
-                    f"drop {arbpair} because its fundrate_diff < expected {self._config.fundrate_diff_open}"
-                )
+        for market in self._config.markets:
+            long_ex, short_ex, fundrate_diff = self._best_arb_pair(ex_fundrates=funding_rates[market])
+            if fundrate_diff < self._config.fundrate_diff_open:
                 continue
+            
+            trade2close, trade2open = self.__open(market=market, 
+                                                  long_ex=long_ex, 
+                                                  short_ex=short_ex, fundrate_diff: float)
 
-            # TODO: 这里是否还有改进的空间，一个cex可能在不同时间增加了多个对手方
-            if self.__is_holding(cex=arbpair.buy_cex, symbol=symbol):
-                continue
-
-            if self.__is_holding(cex=arbpair.sell_cex, symbol=symbol):
-                continue
-
-            trade = FundingArbitrageTrade(
-                market=symbol,
-                long_ex=self._cexs[arbpair.buy_cex],
-                short_ex=self._cexs[arbpair.sell_cex],
-            )
-            trade.open(
+            trade2open.open(
                 usd_amount=self._config.ordersize_usd,
-                prices={
-                    "long": prices[arbpair.buy_cex][symbol],
-                    "short": prices[arbpair.sell_cex][symbol],
-                },
+                prices=prices[market],
             )
-            self._trades.append(trade)
 
-    def close_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
+    def close(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
 
         for trade in self._trades:
             if not trade.is_active:

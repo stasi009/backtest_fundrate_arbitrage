@@ -55,6 +55,10 @@ class Order:
 
 
 class FundingArbTrade:
+    @staticmethod
+    def naming(market: str, long_ex: str, short_ex: str):
+        return f"L[{long_ex}].S[{short_ex}].{market}"
+
     def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange) -> None:
         self.market = market  # 为了对冲，symbol肯定是唯一的
 
@@ -66,20 +70,20 @@ class FundingArbTrade:
         self.open_tm: datetime = None  # 初次开仓的时间
         self.close_tm: datetime = None
 
-        self._latest_fundrate_diff = None
+        self.latest_fundrate_diff = None
+        self.open_fundrate_diff = None
 
     @property
     def is_active(self):
         return self.open_tm is not None and self.close_tm is None
 
-    def match(self, market: str, long_ex: str, short_ex: str):
-        return (
-            self.market == market
-            and self._orders["long"].ex_name == long_ex
-            and self._orders["short"].ex_name == short_ex
+    @property
+    def name(self):
+        return self.naming(
+            market=self.market, long_ex=self._orders["long"].ex_name, short_ex=self._orders["short"].ex_name
         )
 
-    def open(self, tm: datetime, usd_amount: float, prices: dict[str, float]):
+    def open(self, tm: datetime, usd_amount: float, prices: dict[str, float], fundrate_diff: float):
         """
         Args:
             usd_amount: 因为不同market价格差异较大，很难统一设置交易份额，而设置交易金额比较直觉
@@ -94,6 +98,9 @@ class FundingArbTrade:
         for k in ["long", "short"]:
             order = self._orders[k]
             order.open(shares=shares, price=prices[order.ex_name])
+
+        self.open_fundrate_diff = fundrate_diff
+        assert self.open_fundrate_diff > 0
 
         if self.open_tm is None:  # 加仓时不更新开仓时间
             self.open_tm = tm
@@ -116,19 +123,17 @@ class FundingArbTrade:
         """
         if not self.is_active:
             return
-        
+
         current_fundrates = {}
 
         for k in ["long", "short"]:
             order = self._orders[k]
             fundrate = funding_rates[order.ex_name]
             current_fundrates[k] = fundrate
-            order.accumulate_funding(
-                mark_price=mark_prices[order.ex_name], funding_rate=fundrate
-            )
+            order.accumulate_funding(mark_price=mark_prices[order.ex_name], funding_rate=fundrate)
 
-        self._latest_fundrate_diff = current_fundrates['short'] - current_fundrates['long']
-        assert self._latest_fundrate_diff > 0
+        self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
+        assert self.latest_fundrate_diff > 0
 
     @property
     def trade_pnl(self):
