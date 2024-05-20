@@ -63,25 +63,34 @@ class FundingArbitrageTrade:
             "short": Order(market=market, exchange=short_ex, is_long=-1),
         }
 
-        self.open_tm: datetime = None
+        self.open_tm: datetime = None  # 初次开仓的时间
         self.close_tm: datetime = None
 
     @property
     def is_active(self):
         return self.open_tm is not None and self.close_tm is None
 
-    def get_order(self, direction:str):
+    def get_order(self, direction: str):
         return self._orders[direction]
 
-    def open(self, tm: datetime, shares: float, prices: dict[str, float]):
+    def open(self, tm: datetime, usd_amount: float, prices: dict[str, float]):
         """
         Args:
+            usd_amount: 因为不同market价格差异较大，很难统一设置交易份额，而设置交易金额比较直觉
             prices (dict[str, float]): exchange->price
         """
+        shares = None
+        for k in ["long", "short"]:
+            tmp = usd_amount / prices[self._orders[k].ex_name]
+            if shares is None or tmp < shares:
+                shares = tmp
+
         for k in ["long", "short"]:
             order = self._orders[k]
             order.open(shares=shares, price=prices[order.ex_name])
-        self.open_tm = tm
+
+        if self.open_tm is None:  # 加仓时不更新开仓时间
+            self.open_tm = tm
 
     def close(self, tm: datetime, prices: dict[str, float]):
         """
