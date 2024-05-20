@@ -54,7 +54,7 @@ class Order:
         return self._funding_pnl
 
 
-class FundingArbitrageTrade:
+class FundingArbTrade:
     def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange) -> None:
         self.market = market  # 为了对冲，symbol肯定是唯一的
 
@@ -66,12 +66,18 @@ class FundingArbitrageTrade:
         self.open_tm: datetime = None  # 初次开仓的时间
         self.close_tm: datetime = None
 
+        self._latest_fundrate_diff = None
+
     @property
     def is_active(self):
         return self.open_tm is not None and self.close_tm is None
 
-    def get_order(self, direction: str):
-        return self._orders[direction]
+    def match(self, market: str, long_ex: str, short_ex: str):
+        return (
+            self.market == market
+            and self._orders["long"].ex_name == long_ex
+            and self._orders["short"].ex_name == short_ex
+        )
 
     def open(self, tm: datetime, usd_amount: float, prices: dict[str, float]):
         """
@@ -110,11 +116,19 @@ class FundingArbitrageTrade:
         """
         if not self.is_active:
             return
+        
+        current_fundrates = {}
+
         for k in ["long", "short"]:
             order = self._orders[k]
+            fundrate = funding_rates[order.ex_name]
+            current_fundrates[k] = fundrate
             order.accumulate_funding(
-                mark_price=mark_prices[order.ex_name], funding_rate=funding_rates[order.ex_name]
+                mark_price=mark_prices[order.ex_name], funding_rate=fundrate
             )
+
+        self._latest_fundrate_diff = current_fundrates['short'] - current_fundrates['long']
+        assert self._latest_fundrate_diff > 0
 
     @property
     def trade_pnl(self):

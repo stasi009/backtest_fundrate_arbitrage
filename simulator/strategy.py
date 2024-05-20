@@ -43,7 +43,7 @@ class FundingArbitrageStrategy:
             self._cexs[cex_name] = Exchange(
                 name=cex_name,
                 init_cash=config.init_cash / len(config.cex_list),
-                symbol_infos=symbol_infos,
+                markets=symbol_infos,
                 commission=config.commission,
             )
 
@@ -73,15 +73,14 @@ class FundingArbitrageStrategy:
         for trade in self._trades:
             if not trade.is_active:
                 continue
-            
-            buy_cex = trade.get_order('long').cex_name
-            sell_cex = trade.get_order('short').cex_name
-            
-            if symbol == trade.symbol and (buy_cex == cex or sell_cex==cex):
-                return True
-            
-        return False
 
+            buy_cex = trade.get_order("long").ex_name
+            sell_cex = trade.get_order("short").ex_name
+
+            if symbol == trade.market and (buy_cex == cex or sell_cex == cex):
+                return True
+
+        return False
 
     def open_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
         """
@@ -105,9 +104,9 @@ class FundingArbitrageStrategy:
                 continue
 
             trade = FundingArbitrageTrade(
-                symbol=symbol,
-                long_cex=self._cexs[arbpair.buy_cex],
-                short_cex=self._cexs[arbpair.sell_cex],
+                market=symbol,
+                long_ex=self._cexs[arbpair.buy_cex],
+                short_ex=self._cexs[arbpair.sell_cex],
             )
             trade.open(
                 usd_amount=self._config.ordersize_usd,
@@ -118,26 +117,24 @@ class FundingArbitrageStrategy:
             )
             self._trades.append(trade)
 
-
-
     def close_trades(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
 
         for trade in self._trades:
             if not trade.is_active:
                 continue
 
-            buy_cex = trade.get_order("long").cex_name
-            buyside_frate = funding_rates[buy_cex][trade.symbol]
+            buy_cex = trade.get_order("long").ex_name
+            buyside_frate = funding_rates[buy_cex][trade.market]
 
-            sell_cex = trade.get_order("short").cex_name
-            sellside_frate = funding_rates[sell_cex][trade.symbol]
+            sell_cex = trade.get_order("short").ex_name
+            sellside_frate = funding_rates[sell_cex][trade.market]
 
             # TODO:目前只有一个终止退出的条件，就是发现套利机会消失，未来可以增加更多的止盈+止损条件
             if sellside_frate - buyside_frate < self._config.fundrate_diff_close:
                 trade.close(
                     prices={
-                        "long": prices[buy_cex][trade.symbol],
-                        "short": prices[sell_cex][trade.symbol],
+                        "long": prices[buy_cex][trade.market],
+                        "short": prices[sell_cex][trade.market],
                     }
                 )
 
