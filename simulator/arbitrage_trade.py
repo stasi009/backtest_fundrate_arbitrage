@@ -83,7 +83,7 @@ class FundingArbTrade:
             market=self.market, long_ex=self._orders["long"].ex_name, short_ex=self._orders["short"].ex_name
         )
 
-    def open(self, tm: datetime, usd_amount: float, prices: dict[str, float], fundrate_diff: float):
+    def open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """
         Args:
             usd_amount: 因为不同market价格差异较大，很难统一设置交易份额，而设置交易金额比较直觉
@@ -91,13 +91,13 @@ class FundingArbTrade:
         """
         shares = None
         for k in ["long", "short"]:
-            tmp = usd_amount / prices[self._orders[k].ex_name]
+            tmp = usd_amount / ex2prices[self._orders[k].ex_name]
             if shares is None or tmp < shares:
                 shares = tmp
 
         for k in ["long", "short"]:
             order = self._orders[k]
-            order.open(shares=shares, price=prices[order.ex_name])
+            order.open(shares=shares, price=ex2prices[order.ex_name])
 
         self.open_fundrate_diff = fundrate_diff
         assert self.open_fundrate_diff > 0
@@ -105,17 +105,17 @@ class FundingArbTrade:
         if self.open_tm is None:  # 加仓时不更新开仓时间
             self.open_tm = tm
 
-    def close(self, tm: datetime, prices: dict[str, float]):
+    def close(self, tm: datetime, ex2prices: dict[str, float]):
         """
         Args:
             prices (dict[str, float]): exchange->price
         """
         for k in ["long", "short"]:
             order = self._orders[k]
-            order.close(price=prices[order.ex_name])
+            order.close(price=ex2prices[order.ex_name])
         self.close_tm = tm
 
-    def accumulate_funding(self, mark_prices: dict[str, float], funding_rates: dict[str, float]):
+    def accumulate_funding(self, ex2markprices: dict[str, float], ex2fundrates: dict[str, float]):
         """
         Args:
             mark_prices (dict[str, float]): exchange->market price
@@ -128,9 +128,9 @@ class FundingArbTrade:
 
         for k in ["long", "short"]:
             order = self._orders[k]
-            fundrate = funding_rates[order.ex_name]
+            fundrate = ex2fundrates[order.ex_name]
             current_fundrates[k] = fundrate
-            order.accumulate_funding(mark_price=mark_prices[order.ex_name], funding_rate=fundrate)
+            order.accumulate_funding(mark_price=ex2markprices[order.ex_name], funding_rate=fundrate)
 
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
         assert self.latest_fundrate_diff > 0
