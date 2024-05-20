@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import logging
 from prettytable import PrettyTable
@@ -22,7 +21,10 @@ class PerpsAccount:
         self._cash_callback = cash_callback
 
     def update(self, cash_item: CashItem, delta_cash: float, margin_call: bool = True):
-        """account账户下的cash_item这个会计科目，导致了delta_cash的资金变化"""
+        """account账户下的cash_item这个会计科目，导致了delta_cash的资金变化
+        - cash_item：资金变化反映在哪个会计科目上
+        - delta_cash：delta_cash>0(<0)说明该变化导致cash增加（减少）
+        """
         self._cash_callback(delta_cash, margin_call)
 
         match cash_item:
@@ -99,7 +101,7 @@ class Exchange:
         total_cost = abs(account.long_short_shares) * account.hold_price + shares * price
         account.long_short_shares += is_long * shares
         new_hold_price = total_cost / abs(account.long_short_shares)
-        assert 0 < new_hold_price < account.hold_price
+        assert (account.hold_price == 0) or (0 < new_hold_price < account.hold_price)
 
         account.hold_price = new_hold_price
         logging.info(
@@ -107,6 +109,7 @@ class Exchange:
         )
 
     def trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
+        assert shares > 0
         account = self._perps_accounts[symbol]
 
         if is_long * account.long_short_shares >= 0:  # 本次交易方向与目前持仓方向相同，无需先平仓
@@ -140,7 +143,7 @@ class Exchange:
         total_used_margin = 0
         total_trade_pnl = 0
         total_fund_pnl = 0
-        for _, account in self._perps_accounts.items():
+        for account in self._perps_accounts.values():
             total_used_margin += account.used_margin
             total_trade_pnl += account.trade_pnl
             total_fund_pnl += account.fund_pnl
@@ -158,13 +161,12 @@ class Exchange:
     def trading_settle(self, prices):
         """
         timestamp和prices都由pd.DataFrame.iterrows获得
-        - timestamp是某一行的index，代表时间
         - prices是一个pd.Series, prices[symbol]表示该symbol的价格
-        - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格
+        - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格，而非一个candle
         """
         for symbol, account in self._perps_accounts.items():
             price = prices[symbol]
-            if np.isnan(price):
+            if pd.isnan(price):
                 continue
 
             # ----------- mark to market
@@ -183,7 +185,7 @@ class Exchange:
         for symbol, account in self._perps_accounts.items():
             mark_price = mark_prices[symbol]
             funding_rate = funding_rates[symbol]
-            if np.isnan(mark_price) or np.isnan(funding_rate):
+            if pd.isnan(mark_price) or pd.isnan(funding_rate):
                 continue
 
             # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
