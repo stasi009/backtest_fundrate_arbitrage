@@ -1,4 +1,5 @@
 from simulator.exchange import Exchange
+from simulator.config import Config
 from datetime import datetime
 
 
@@ -8,7 +9,6 @@ class Order:
         self._exchange = exchange
         self._is_long = is_long
 
-        self.shares = None
         self._open_price = None
         self._close_price = None
         self._funding_pnl = 0
@@ -29,12 +29,15 @@ class Order:
         self._exchange.trade(market=self._market, is_long=-self._is_long, price=price, shares=self._shares)
         self._close_price = price
 
-    def accumulate_funding(self, mark_price, funding_rate):
+    def settle(self, contract_price: float, mark_price:float, funding_rate:float):
+        self._exchange.trading_settle(market=self._market, price=contract_price)
+        
         # _is_long>0==>long position, funding_rate>0==>long pay short, pnl<0
         # _is_long>0==>long position, funding_rate<0==>short pay long, pnl>0
         # _is_long<0==>short position, funding_rate<0==>short pay long, pnl<0
         # _is_long<0==>short position, funding_rate>0==>long pay short, pnl>0
         self._funding_pnl += -self._is_long * self._shares * mark_price * funding_rate
+        self._exchange.funding_settle(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
 
     @property
     def trade_pnl(self):
@@ -52,15 +55,17 @@ class Order:
     @property
     def fund_pnl(self):
         return self._funding_pnl
+    
+    @property
+    def used_margin(self):
+        return self._exchange.account(self._market).used_margin
 
 
 class FundingArbTrade:
-    @staticmethod
-    def naming(market: str, long_ex: str, short_ex: str):
-        return f"L[{long_ex}].S[{short_ex}].{market}"
 
-    def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange) -> None:
+    def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange, config: Config) -> None:
         self.market = market  # 为了对冲，symbol肯定是唯一的
+        self._config = config
 
         self._orders = {
             "long": Order(market=market, exchange=long_ex, is_long=1),
@@ -79,9 +84,7 @@ class FundingArbTrade:
 
     @property
     def name(self):
-        return self.naming(
-            market=self.market, long_ex=self._orders["long"].ex_name, short_ex=self._orders["short"].ex_name
-        )
+        return f"L[{self._orders['long'].ex_name}].S[{self._orders['short'].ex_name}].{self.market}"
 
     def open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """

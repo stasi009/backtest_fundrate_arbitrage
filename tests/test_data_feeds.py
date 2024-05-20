@@ -35,11 +35,11 @@ def create_mock_datas():
 
 def test_data_feeds():
     feeds = DataFeeds(
-        data_dir=Path("data/test"), cex_list=["binance", "okx", "bitget"], symbol_list=["A", "B", "C"]
+        data_dir=Path("data/test"), exchanges=["binance", "okx", "bitget"], markets=["A", "B", "C"]
     )
     for idx, feed in enumerate(feeds,start=1):
         print(f"\n------------{idx}: {feed.timestamp}")
-        pprint(feed.prices)
+        pprint(feed.open_price)
         pprint(feed.funding_rates)
 
 
