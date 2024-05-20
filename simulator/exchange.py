@@ -64,6 +64,9 @@ class Exchange:
         }
 
         self._metrics = []
+        
+    def account(self,market:str) -> PerpsAccount:
+        return self._perps_accounts[market]
 
     def _update_cash(self, delta_cash: float, margin_call: bool):
         temp = self._cash + delta_cash
@@ -158,42 +161,30 @@ class Exchange:
             fund_pnl=total_fund_pnl,
         )
 
-    def trading_settle(self, prices):
-        """
-        timestamp和prices都由pd.DataFrame.iterrows获得
-        - prices是一个pd.Series, prices[market]表示该market的价格
-        - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格，而非一个candle
-        """
-        for market, account in self._perps_accounts.items():
-            price = prices[market]
-            if pd.isna(price):
-                continue
+    def trading_settle(self, market:str, price:float):        
+        account = self._perps_accounts[market]
 
-            # ----------- mark to market
-            # long_short_shares>0，持有多仓，price>hold_price才profit
-            # long_short_shares<0，持有空仓，price<hold_price才profit
-            pnl = (price - account.hold_price) * account.long_short_shares
-            account.update(cash_item=CashItem.TRADE_PNL, delta_cash=pnl)
-            account.hold_price = price  # mark to market
+        # ----------- mark to market
+        # long_short_shares>0，持有多仓，price>hold_price才profit
+        # long_short_shares<0，持有空仓，price<hold_price才profit
+        pnl = (price - account.hold_price) * account.long_short_shares
+        account.update(cash_item=CashItem.TRADE_PNL, delta_cash=pnl)
+        account.hold_price = price  # mark to market
 
-            # ----------- new margin requirement
-            new_margin = abs(account.long_short_shares) * price * account.margin_rate
-            margin_diff = new_margin - account.used_margin
-            account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
+        # ----------- new margin requirement
+        new_margin = abs(account.long_short_shares) * price * account.margin_rate
+        margin_diff = new_margin - account.used_margin
+        account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
 
-    def funding_settle(self, mark_prices: dict[str, float], funding_rates: dict[str, float]):
-        for market, account in self._perps_accounts.items():
-            mark_price = mark_prices[market]
-            funding_rate = funding_rates[market]
-            if pd.isna(mark_price) or pd.isna(funding_rate):
-                continue
+    def funding_settle(self, market:str, mark_price:float, funding_rate:float):
+        account=self._perps_accounts[market]
 
-            # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
-            # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
-            # long_short_shares<0==>short position, funding_rate<0==>short pay long, pnl<0
-            # long_short_shares<0==>short position, funding_rate>0==>long pay short, pnl>0
-            pnl = -funding_rate * account.long_short_shares * mark_price
-            account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
+        # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
+        # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
+        # long_short_shares<0==>short position, funding_rate<0==>short pay long, pnl<0
+        # long_short_shares<0==>short position, funding_rate>0==>long pay short, pnl>0
+        pnl = -funding_rate * account.long_short_shares * mark_price
+        account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
 
     def record_metric(self, timestamp) -> None:
         # ------------ calculate metrics
