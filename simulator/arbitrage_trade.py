@@ -1,10 +1,11 @@
 from simulator.exchange import Exchange
 from datetime import datetime
 
+
 class Order:
-    def __init__(self, symbol: str, cex: Exchange, is_long: int) -> None:
-        self._symbol = symbol
-        self._cex = cex
+    def __init__(self, market: str, exchange: Exchange, is_long: int) -> None:
+        self._market = market
+        self._exchange = exchange
         self._is_long = is_long
 
         self.shares = None
@@ -13,17 +14,19 @@ class Order:
         self._funding_pnl = 0
 
     @property
-    def cex_name(self):
-        return self._cex.name
+    def ex_name(self):
+        return self._exchange.name
 
-    def open(self, usd_amount: float, price: float):
-        self._shares = usd_amount / price
+    def open(self, shares: float, price: float):
+        self._shares = shares
         self._open_price = price
-        self._cex.trade(symbol=self._symbol, is_long=self._is_long, price=price, shares=self._shares)
+        self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=self._shares)
 
     def close(self, price: float):
         # is_long=-self._is_long，平仓时的交易方向与持仓方向相反
-        self._cex.trade(symbol=self._symbol, is_long=-self._is_long, price=price, shares=self._shares)
+        # TODO: 大部分情况下，这里也可以用exchange.close
+        # 之所以没有使用，是因为还想保留一种可能性，就是针对同一个market，long in exchange A, short in exchange B & C
+        self._exchange.trade(market=self._market, is_long=-self._is_long, price=price, shares=self._shares)
         self._close_price = price
 
     def accumulate_funding(self, mark_price, funding_rate):
@@ -35,61 +38,80 @@ class Order:
 
     @property
     def trade_pnl(self):
+        # NOTE: 与mark to market的结果应该一致，
+        # 因为close price - open price = close price - MarkToMarket Price + MarkToMarket Price - open price
         # is_long>0，持有多仓，close price > open_price才profit
         # is_long<0，持有空仓，close price < open_price才profit
         pnl = self._is_long * (self._close_price - self._open_price) * self.shares
 
         for price in [self._open_price, self._close_price]:
-            pnl -= price * self.shares * self._cex.commission
+            pnl -= price * self.shares * self._exchange.commission
 
         return pnl
-    
+
     @property
     def fund_pnl(self):
         return self._funding_pnl
 
 
 class FundingArbitrageTrade:
-    def __init__(self, symbol: str, long_cex: Exchange, short_cex: Exchange) -> None:
-        self.symbol = symbol  # 为了对冲，symbol肯定是唯一的
+    def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange) -> None:
+        self.market = market  # 为了对冲，symbol肯定是唯一的
 
         self._orders = {
-            "long": Order(symbol=symbol, cex=long_cex, is_long=1),
-            "short": Order(symbol=symbol, cex=short_cex, is_long=-1),
+            "long": Order(market=market, exchange=long_ex, is_long=1),
+            "short": Order(market=market, exchange=short_ex, is_long=-1),
         }
 
-        self.is_active = False
-        self.open_time: datetime = None 
-        self.close_time: datetime = None
-        
-    def get_order(self,direction):
+        self.open_tm: datetime = None
+        self.close_tm: datetime = None
+
+    @property
+    def is_active(self):
+        return self.open_tm is not None and self.close_tm is None
+
+    def get_order(self, direction:str):
         return self._orders[direction]
 
-    def open(self, usd_amount: float, prices: dict[str, float]):
-        assert not self.is_active
+    def open(self, tm: datetime, shares: float, prices: dict[str, float]):
+        """
+        Args:
+            prices (dict[str, float]): exchange->price
+        """
         for k in ["long", "short"]:
-            self._orders[k].open(usd_amount=usd_amount, price=prices[k])
-        self.is_active = True
+            order = self._orders[k]
+            order.open(shares=shares, price=prices[order.ex_name])
+        self.open_tm = tm
 
-    def close(self, prices: dict[str, float]):
-        assert self.is_active
+    def close(self, tm: datetime, prices: dict[str, float]):
+        """
+        Args:
+            prices (dict[str, float]): exchange->price
+        """
         for k in ["long", "short"]:
-            self._orders[k].close(price=prices[k])
-        self.is_active = False
+            order = self._orders[k]
+            order.close(price=prices[order.ex_name])
+        self.close_tm = tm
 
-    def accumulate_funding(self, mark_prices, funding_rates):
+    def accumulate_funding(self, mark_prices: dict[str, float], funding_rates: dict[str, float]):
+        """
+        Args:
+            mark_prices (dict[str, float]): exchange->market price
+            funding_rates (dict[str, float]): exchange->funding rate
+        """
         if not self.is_active:
             return
         for k in ["long", "short"]:
-            self._orders[k].accumulate_funding(mark_price=mark_prices[k], funding_rate=funding_rates[k])
-            
+            order = self._orders[k]
+            order.accumulate_funding(
+                mark_price=mark_prices[order.ex_name], funding_rate=funding_rates[order.ex_name]
+            )
+
     @property
     def trade_pnl(self):
-        assert not self.is_active # close_price is only available after closing the trade
+        assert not self.is_active  # close_price is only available after closing the trade
         return sum(self._orders[k].trade_pnl for k in ["long", "short"])
-    
+
     @property
     def fund_pnl(self):
         return sum(self._orders[k].fund_pnl for k in ["long", "short"])
-        
-        
