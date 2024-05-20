@@ -8,8 +8,8 @@ CashItem = Enum("CashItem", ["MARGIN", "TRADE_PNL", "FUND_PNL"])
 
 
 class PerpsAccount:
-    def __init__(self, symbol: str, margin_rate: float, cash_callback) -> None:
-        self.symbol = symbol
+    def __init__(self, market: str, margin_rate: float, cash_callback) -> None:
+        self.market = market
         self.margin_rate = margin_rate
 
         self.long_short_shares = 0  # >0, long; <0, short.之所以不叫shares，提醒我这个shares能正能负
@@ -50,7 +50,7 @@ class NotEnoughMargin(Exception):
 
 class Exchange:
     def __init__(
-        self, name: str, init_cash: float, symbol_infos: dict[str, float], commission=0.00005
+        self, name: str, init_cash: float, markets: dict[str, float], commission=0.00005
     ) -> None:
         self.name = name
 
@@ -59,8 +59,8 @@ class Exchange:
         self.commission = commission
 
         self._perps_accounts = {
-            symbol: PerpsAccount(symbol, margin_rate, cash_callback=self._update_cash)
-            for symbol, margin_rate in symbol_infos.items()
+            market: PerpsAccount(market, margin_rate, cash_callback=self._update_cash)
+            for market, margin_rate in markets.items()
         }
 
         self._metrics = []
@@ -72,8 +72,8 @@ class Exchange:
             raise NotEnoughMargin(margin_call)
         self._cash = temp
 
-    def _close(self, symbol: str, is_long: int, price: float, shares: float):
-        account = self._perps_accounts[symbol]
+    def _close(self, market: str, is_long: int, price: float, shares: float):
+        account = self._perps_accounts[market]
 
         # is_long>0，买入平仓，说明平的是空仓，price < hold_price才profit
         # is_long<0，卖出平仓，说明平的是多仓，price > hold_price才profit
@@ -89,11 +89,11 @@ class Exchange:
         account.long_short_shares += is_long * shares
 
         logging.info(
-            f"[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares"
+            f"[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
         )
 
-    def _open(self, symbol: str, is_long: int, price: float, shares: float):
-        account = self._perps_accounts[symbol]
+    def _open(self, market: str, is_long: int, price: float, shares: float):
+        account = self._perps_accounts[market]
 
         new_margin = shares * price * account.margin_rate  # 新建仓位需要的保证金
         account.update(cash_item=CashItem.MARGIN, delta_cash=-new_margin)
@@ -105,12 +105,12 @@ class Exchange:
 
         account.hold_price = new_hold_price
         logging.info(
-            f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{symbol}] at price={price:.2f} for {shares} shares"
+            f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
         )
 
-    def trade(self, symbol: str, is_long: int, price: float, shares: float) -> None:
+    def trade(self, market: str, is_long: int, price: float, shares: float) -> None:
         assert shares > 0
-        account = self._perps_accounts[symbol]
+        account = self._perps_accounts[market]
 
         if is_long * account.long_short_shares >= 0:  # 本次交易方向与目前持仓方向相同，无需先平仓
             close_shares = 0
@@ -122,21 +122,21 @@ class Exchange:
         account.update(cash_item=CashItem.TRADE_PNL, delta_cash=-fee)
 
         if close_shares > 0:  # 先平仓
-            self._close(symbol=symbol, is_long=is_long, price=price, shares=shares)
+            self._close(market=market, is_long=is_long, price=price, shares=shares)
 
         if open_shares > 0:
-            self._open(symbol=symbol, is_long=is_long, price=price, shares=shares)
+            self._open(market=market, is_long=is_long, price=price, shares=shares)
 
-    def buy(self, symbol: str, price: float, shares: float):
-        self.trade(symbol=symbol, is_long=1, price=price, shares=shares)
+    def buy(self, market: str, price: float, shares: float):
+        self.trade(market=market, is_long=1, price=price, shares=shares)
 
-    def sell(self, symbol: str, price: float, shares: float):
-        self.trade(symbol=symbol, is_long=-1, price=price, shares=shares)
+    def sell(self, market: str, price: float, shares: float):
+        self.trade(market=market, is_long=-1, price=price, shares=shares)
 
-    def clear(self, symbol: str, price: float):
-        account = self._perps_accounts[symbol]
+    def clear(self, market: str, price: float):
+        account = self._perps_accounts[market]
         is_long = 1 if account.long_short_shares < 0 else -1  # 平仓时的交易方向肯定与当前持仓方向相反
-        self.trade(symbol=symbol, is_long=is_long, price=price, shares=abs(account.long_short_shares))
+        self.trade(market=market, is_long=is_long, price=price, shares=abs(account.long_short_shares))
 
     @property
     def _current_metric(self):
@@ -161,11 +161,11 @@ class Exchange:
     def trading_settle(self, prices):
         """
         timestamp和prices都由pd.DataFrame.iterrows获得
-        - prices是一个pd.Series, prices[symbol]表示该symbol的价格
+        - prices是一个pd.Series, prices[market]表示该market的价格
         - !TODO:显然这里做了极大的简化，认为一个时间段内只有一个价格，而非一个candle
         """
-        for symbol, account in self._perps_accounts.items():
-            price = prices[symbol]
+        for market, account in self._perps_accounts.items():
+            price = prices[market]
             if pd.isna(price):
                 continue
 
@@ -182,9 +182,9 @@ class Exchange:
             account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
 
     def funding_settle(self, mark_prices: dict[str, float], funding_rates: dict[str, float]):
-        for symbol, account in self._perps_accounts.items():
-            mark_price = mark_prices[symbol]
-            funding_rate = funding_rates[symbol]
+        for market, account in self._perps_accounts.items():
+            mark_price = mark_prices[market]
+            funding_rate = funding_rates[market]
             if pd.isna(mark_price) or pd.isna(funding_rate):
                 continue
 
@@ -218,12 +218,12 @@ class Exchange:
         print(pt)
         # ---------- each account
         pt = PrettyTable(
-            ["Symbol", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"], title="Perps Accounts"
+            ["Market", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"], title="Perps Accounts"
         )
-        for symbol, account in self._perps_accounts.items():
+        for market, account in self._perps_accounts.items():
             pt.add_row(
                 (
-                    symbol,
+                    market,
                     f"{account.long_short_shares:.3f}",
                     f"{account.hold_price:.3f}",
                     f"{account.used_margin:.3f}",
