@@ -205,6 +205,7 @@ class Exchange:
     def metric_history(self):
         df = pd.DataFrame(self._metrics)
         df.set_index("timestamp", inplace=True)
+        df = df.loc[:,["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]] # reorder columns
         return df
 
     def inspect(self, header: str = ""):
