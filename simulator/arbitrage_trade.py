@@ -1,25 +1,23 @@
 from simulator.exchange import Exchange
 from simulator.config import Config
 from datetime import datetime
-
+from copy import copy
 
 class Order:
     def __init__(self, market: str, exchange: Exchange, is_long: int) -> None:
         self._market = market
         self._exchange = exchange
         self._is_long = is_long
-
-        self._open_price = None
-        self._close_price = None
-        self._funding_pnl = 0
+        self._init_account = None
 
     @property
     def ex_name(self):
         return self._exchange.name
 
     def open(self, shares: float, price: float):
-        self._shares = shares
-        self._open_price = price
+        if self._init_account is None:
+            # open可用于加仓，所以只在第1次open时才快照
+            self._init_account = copy(self._exchange.account(self._market))
         self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=self._shares)
 
     def close(self, price: float):
@@ -27,34 +25,21 @@ class Order:
         # TODO: 大部分情况下，这里也可以用exchange.close
         # 之所以没有使用，是因为还想保留一种可能性，就是针对同一个market，long in exchange A, short in exchange B & C
         self._exchange.trade(market=self._market, is_long=-self._is_long, price=price, shares=self._shares)
-        self._close_price = price
 
     def settle(self, contract_price: float, mark_price:float, funding_rate:float):
         self._exchange.trading_settle(market=self._market, price=contract_price)
-        
-        # _is_long>0==>long position, funding_rate>0==>long pay short, pnl<0
-        # _is_long>0==>long position, funding_rate<0==>short pay long, pnl>0
-        # _is_long<0==>short position, funding_rate<0==>short pay long, pnl<0
-        # _is_long<0==>short position, funding_rate>0==>long pay short, pnl>0
-        self._funding_pnl += -self._is_long * self._shares * mark_price * funding_rate
         self._exchange.funding_settle(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
 
     @property
     def trade_pnl(self):
-        # NOTE: 与mark to market的结果应该一致，
-        # 因为close price - open price = close price - MarkToMarket Price + MarkToMarket Price - open price
-        # is_long>0，持有多仓，close price > open_price才profit
-        # is_long<0，持有空仓，close price < open_price才profit
-        pnl = self._is_long * (self._close_price - self._open_price) * self.shares
-
-        for price in [self._open_price, self._close_price]:
-            pnl -= price * self.shares * self._exchange.commission
-
-        return pnl
+        current_account = self._exchange.account(self._market)
+        return current_account.trade_pnl - self._init_account.trade_pnl
+        
 
     @property
     def fund_pnl(self):
-        return self._funding_pnl
+        current_account = self._exchange.account(self._market)
+        return current_account.fund_pnl - self._init_account.fund_pnl
     
     @property
     def used_margin(self):
