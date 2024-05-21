@@ -59,8 +59,14 @@ class Exchange:
 
         self._metrics = []
 
-    def account(self, market: str) -> PerpsAccount:
+    def get_account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]
+    
+    def set_account(self,market:str, account:PerpsAccount)->None:
+        """ 主要用于回滚操作，将某个market状态回滚至操作前的状态
+        """
+        self._perps_accounts[market] = account
+        
 
     def _update_cash(self, delta_cash: float):
         temp = self._cash + delta_cash

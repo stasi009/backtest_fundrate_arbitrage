@@ -1,7 +1,8 @@
-from simulator.exchange import Exchange
+from simulator.exchange import Exchange, MarginCall, PerpsAccount
 from simulator.config import Config
 from datetime import datetime
 from copy import copy
+import logging
 
 
 class Order:
@@ -14,10 +15,13 @@ class Order:
     @property
     def ex_name(self):
         return self._exchange.name
-    
+
     @property
-    def clone_account(self):
-        return copy(self._exchange.account(self._market))
+    def clone_account(self) -> PerpsAccount:
+        return copy(self._exchange.get_account(self._market))
+
+    def restore_account(self, account: PerpsAccount) -> None:
+        self._exchange.set_account(self._market, account)
 
     def open(self, shares: float, price: float):
         if self._init_account is None:
@@ -26,7 +30,7 @@ class Order:
         self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=shares)
 
     def close(self, price: float):
-        self._exchange.clear(market=self._market,price=price)
+        self._exchange.clear(market=self._market, price=price)
 
     def settle(self, contract_price: float, mark_price: float, funding_rate: float):
         self._exchange.trading_settle(market=self._market, price=contract_price)
@@ -34,17 +38,13 @@ class Order:
 
     @property
     def trade_pnl(self):
-        current_account = self._exchange.account(self._market)
+        current_account = self._exchange.get_account(self._market)
         return current_account.trade_pnl - self._init_account.trade_pnl
 
     @property
     def fund_pnl(self):
-        current_account = self._exchange.account(self._market)
+        current_account = self._exchange.get_account(self._market)
         return current_account.fund_pnl - self._init_account.fund_pnl
-
-    @property
-    def used_margin(self):
-        return self._exchange.account(self._market).used_margin
 
 
 class FundingArbTrade:
@@ -71,12 +71,20 @@ class FundingArbTrade:
     @property
     def name(self):
         return f"L[{self._orders['long'].ex_name}].S[{self._orders['short'].ex_name}].{self.market}"
-    
-    def safe_open( tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
-        """ 如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
+
+    def safe_open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
+        """如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
         无论long ex or short ex哪个发生margin call，两个ex都要回滚，因为只单边建仓是没有对冲的，极其危险的
         """
-        # cloned_account = {  for direction in ['long',short]}
+        cloned_accounts = {self._orders[direction].clone_account for direction in ["long", "short"]}
+        try:
+            self._open(tm=tm, usd_amount=usd_amount, ex2prices=ex2prices, fundrate_diff=fundrate_diff)
+            return True
+        except MarginCall:
+            logging.error(f"!!! Margin Call on {self.name}, Drop Open Action")
+            for direction, order in self._orders.items():
+                order.restore_account(cloned_accounts[direction])
+            return False
 
     def _open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """
