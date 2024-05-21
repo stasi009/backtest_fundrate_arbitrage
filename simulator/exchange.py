@@ -49,9 +49,7 @@ class NotEnoughMargin(Exception):
 
 
 class Exchange:
-    def __init__(
-        self, name: str, init_cash: float, markets: dict[str, float], commission=0.00005
-    ) -> None:
+    def __init__(self, name: str, init_cash: float, markets: dict[str, float], commission=0.00005) -> None:
         self.name = name
 
         self.__init_cash = init_cash
@@ -64,8 +62,8 @@ class Exchange:
         }
 
         self._metrics = []
-        
-    def account(self,market:str) -> PerpsAccount:
+
+    def account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]
 
     def _update_cash(self, delta_cash: float, margin_call: bool):
@@ -78,13 +76,13 @@ class Exchange:
     def _close(self, market: str, is_long: int, price: float, shares: float):
         account = self._perps_accounts[market]
 
+        reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
+        account.update(cash_item=CashItem.MARGIN, delta_cash=reduce_margin)
+
         # is_long>0，买入平仓，说明平的是空仓，price < hold_price才profit
         # is_long<0，卖出平仓，说明平的是多仓，price > hold_price才profit
         pnl = -is_long * (price - account.hold_price) * shares
         account.update(cash_item=CashItem.TRADE_PNL, delta_cash=pnl)
-
-        reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
-        account.update(cash_item=CashItem.MARGIN, delta_cash=reduce_margin)
 
         # is_long>0，买入平仓，说明平的是空仓，原来的long_short_shares<0，加上正shares，持仓才变小
         # is_long<0，卖出平仓，说明平的是多仓，原来的long_short_shares>0，加上负shares，持仓才变小
@@ -161,7 +159,7 @@ class Exchange:
             fund_pnl=total_fund_pnl,
         )
 
-    def trading_settle(self, market:str, price:float):        
+    def trading_settle(self, market: str, price: float):
         account = self._perps_accounts[market]
 
         # ----------- mark to market
@@ -176,8 +174,8 @@ class Exchange:
         margin_diff = new_margin - account.used_margin
         account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
 
-    def funding_settle(self, market:str, mark_price:float, funding_rate:float):
-        account=self._perps_accounts[market]
+    def funding_settle(self, market: str, mark_price: float, funding_rate: float):
+        account = self._perps_accounts[market]
 
         # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
         # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
@@ -196,7 +194,7 @@ class Exchange:
     def metric_history(self):
         df = pd.DataFrame(self._metrics)
         df.set_index("timestamp", inplace=True)
-        df = df.loc[:,["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]] # reorder columns
+        df = df.loc[:, ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]]  # reorder columns
         return df
 
     def inspect(self, header: str = ""):
