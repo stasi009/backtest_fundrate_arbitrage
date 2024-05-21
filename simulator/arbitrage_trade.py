@@ -3,6 +3,7 @@ from simulator.config import Config
 from datetime import datetime
 from copy import copy
 
+
 class Order:
     def __init__(self, market: str, exchange: Exchange, is_long: int) -> None:
         self._market = market
@@ -13,20 +14,21 @@ class Order:
     @property
     def ex_name(self):
         return self._exchange.name
+    
+    @property
+    def clone_account(self):
+        return copy(self._exchange.account(self._market))
 
     def open(self, shares: float, price: float):
         if self._init_account is None:
             # open可用于加仓，所以只在第1次open时才快照
-            self._init_account = copy(self._exchange.account(self._market))
-        self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=self._shares)
+            self._init_account = self.clone_account
+        self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=shares)
 
     def close(self, price: float):
-        # is_long=-self._is_long，平仓时的交易方向与持仓方向相反
-        # TODO: 大部分情况下，这里也可以用exchange.close
-        # 之所以没有使用，是因为还想保留一种可能性，就是针对同一个market，long in exchange A, short in exchange B & C
-        self._exchange.trade(market=self._market, is_long=-self._is_long, price=price, shares=self._shares)
+        self._exchange.clear(market=self._market,price=price)
 
-    def settle(self, contract_price: float, mark_price:float, funding_rate:float):
+    def settle(self, contract_price: float, mark_price: float, funding_rate: float):
         self._exchange.trading_settle(market=self._market, price=contract_price)
         self._exchange.funding_settle(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
 
@@ -34,13 +36,12 @@ class Order:
     def trade_pnl(self):
         current_account = self._exchange.account(self._market)
         return current_account.trade_pnl - self._init_account.trade_pnl
-        
 
     @property
     def fund_pnl(self):
         current_account = self._exchange.account(self._market)
         return current_account.fund_pnl - self._init_account.fund_pnl
-    
+
     @property
     def used_margin(self):
         return self._exchange.account(self._market).used_margin
@@ -70,8 +71,13 @@ class FundingArbTrade:
     @property
     def name(self):
         return f"L[{self._orders['long'].ex_name}].S[{self._orders['short'].ex_name}].{self.market}"
+    
+    def safe_open( tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
+        """ 如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
+        """
+        pass
 
-    def open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
+    def _open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """
         Args:
             usd_amount: 因为不同market价格差异较大，很难统一设置交易份额，而设置交易金额比较直觉
