@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from simulator.data_feeds import DataFeeds
+from simulator.data_feeds import DataFeeds, FeedOnce
 from simulator.exchange import Exchange
 from simulator.arbitrage_trade import FundingArbTrade
 from simulator.config import Config
@@ -32,7 +32,8 @@ class FundingArbStrategy:
             for ex_name in config.exchanges
         }
 
-        self._active_arb_trades: dict[str, FundingArbTrade] = {}  # market --> trade
+        # market --> trade，同一时刻一个market只存在一个trade，1 long vs. 1 short，不存在multi long vs. multi short可能性
+        self._active_arb_trades: dict[str, FundingArbTrade] = {}
         self._closed_trades: list[FundingArbTrade] = {}
 
     def _best_arb_pair(self, market: str, funding_rates: dict[str, dict[str, float]]) -> ArbPair:
@@ -94,7 +95,10 @@ class FundingArbStrategy:
         return None, None
 
     def open(
-        self, tm: datetime, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]
+        self,
+        tm: datetime,
+        prices: dict[str, dict[str, float]],
+        funding_rates: dict[str, dict[str, float]],
     ):
         """
         Args:
@@ -102,7 +106,7 @@ class FundingArbStrategy:
             funding_rates: out-key=market, inner dict: exchange->funding rate
         """
         for market in self._config.markets:
-            arbpair = self._best_arb_pair(ex_fundrates=funding_rates[market])
+            arbpair = self._best_arb_pair(market=market, ex_fundrates=funding_rates[market])
             if arbpair.fundrate_diff < self._config.fundrate_diff_open:
                 continue
 
@@ -111,34 +115,44 @@ class FundingArbStrategy:
                 trade2close.close(tm, prices[market])
 
             if trade2open is not None:
-                trade2open.open(
+                trade2open.safe_open(
                     tm=tm,
                     usd_amount=self._config.ordersize_usd,
-                    prices=prices[market],
+                    ex2prices=prices[market],
                     fundrate_diff=arbpair.fundrate_diff,
                 )
 
-    def close(self, prices: dict[str, dict[str, float]], funding_rates: dict[str, dict[str, float]]):
+    def close(
+        self,
+        tm: datetime,
+        prices: dict[str, dict[str, float]],
+        funding_rates: dict[str, dict[str, float]],
+    ):
+        """
+        Args:
+            prices:        out-key=market, inner dict: exchange->price
+            funding_rates: out-key=market, inner dict: exchange->funding rate
+        """
+        keep_open_trades = {}
+        for market, trade in self._active_arb_trades.items():
+            trade.diff_fundrates(funding_rates[market])
 
-        for trade in self._trades:
-            if not trade.is_active:
-                continue
-
-            buy_cex = trade.get_order("long").ex_name
-            buyside_frate = funding_rates[buy_cex][trade.market]
-
-            sell_cex = trade.get_order("short").ex_name
-            sellside_frate = funding_rates[sell_cex][trade.market]
-
-            # TODO:目前只有一个终止退出的条件，就是发现套利机会消失，未来可以增加更多的止盈+止损条件
-            if sellside_frate - buyside_frate < self._config.fundrate_diff_close:
-                trade.close(
-                    prices={
-                        "long": prices[buy_cex][trade.market],
-                        "short": prices[sell_cex][trade.market],
-                    }
-                )
+            if trade.latest_fundrate_diff < self._config.fundrate_diff_close:
+                trade.close(tm=tm, ex2prices=prices[market])
+                self._closed_trades.append(trade)
+            else:
+                keep_open_trades[market] = trade
+        self._active_arb_trades = keep_open_trades
 
     def run(self):
         for feed in self._data_feeds:
-            self.open_trades()
+            self.close(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
+
+            self.open(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
+
+            for market, trade in self._active_arb_trades.items():
+                trade.settle(
+                    ex2prices=feed.close_prices[market],
+                    ex2markprices=feed.mark_prices[market],
+                    ex2fundrates=feed.funding_rates[market],
+                )

@@ -113,7 +113,7 @@ class FundingArbTrade:
         Args:
             prices (dict[str, float]): exchange->price
         """
-        for direction, order in self._orders.items():
+        for order in self._orders.values():
             order.close(price=ex2prices[order.ex_name])
         self.close_tm = tm
 
@@ -130,7 +130,7 @@ class FundingArbTrade:
         if not self.is_active:
             return
 
-        for direction, order in self._orders.items():
+        for order in self._orders.values():
             order.settle(
                 contract_price=ex2prices[order.ex_name],
                 mark_price=ex2markprices[order.ex_name],
