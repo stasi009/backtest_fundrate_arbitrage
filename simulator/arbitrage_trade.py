@@ -74,8 +74,9 @@ class FundingArbTrade:
     
     def safe_open( tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """ 如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
+        无论long ex or short ex哪个发生margin call，两个ex都要回滚，因为只单边建仓是没有对冲的，极其危险的
         """
-        pass
+        # cloned_account = {  for direction in ['long',short]}
 
     def _open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
         """
@@ -84,13 +85,13 @@ class FundingArbTrade:
             prices (dict[str, float]): exchange->price
         """
         shares = None
-        for k in ["long", "short"]:
-            tmp = usd_amount / ex2prices[self._orders[k].ex_name]
+        for direction in ["long", "short"]:
+            tmp = usd_amount / ex2prices[self._orders[direction].ex_name]
             if shares is None or tmp < shares:
                 shares = tmp
 
-        for k in ["long", "short"]:
-            order = self._orders[k]
+        for direction in ["long", "short"]:
+            order = self._orders[direction]
             order.open(shares=shares, price=ex2prices[order.ex_name])
 
         self.open_fundrate_diff = fundrate_diff
@@ -104,8 +105,8 @@ class FundingArbTrade:
         Args:
             prices (dict[str, float]): exchange->price
         """
-        for k in ["long", "short"]:
-            order = self._orders[k]
+        for direction in ["long", "short"]:
+            order = self._orders[direction]
             order.close(price=ex2prices[order.ex_name])
         self.close_tm = tm
 
@@ -120,10 +121,10 @@ class FundingArbTrade:
 
         current_fundrates = {}
 
-        for k in ["long", "short"]:
-            order = self._orders[k]
+        for direction in ["long", "short"]:
+            order = self._orders[direction]
             fundrate = ex2fundrates[order.ex_name]
-            current_fundrates[k] = fundrate
+            current_fundrates[direction] = fundrate
             order.accumulate_funding(mark_price=ex2markprices[order.ex_name], funding_rate=fundrate)
 
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
