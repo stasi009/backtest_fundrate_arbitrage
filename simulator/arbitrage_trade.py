@@ -33,8 +33,8 @@ class Order:
         self._exchange.clear(market=self._market, price=price)
 
     def settle(self, contract_price: float, mark_price: float, funding_rate: float):
-        self._exchange.trading_settle(market=self._market, price=contract_price)
-        self._exchange.funding_settle(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
+        self._exchange.settle_trading(market=self._market, price=contract_price)
+        self._exchange.settle_funding(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
 
     @property
     def trade_pnl(self):

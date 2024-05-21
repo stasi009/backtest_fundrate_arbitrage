@@ -161,7 +161,7 @@ class Exchange:
             fund_pnl=total_fund_pnl,
         )
 
-    def trading_settle(self, market: str, price: float):
+    def settle_trading(self, market: str, price: float):
         account = self._perps_accounts[market]
 
         # ----------- mark to market
@@ -176,7 +176,7 @@ class Exchange:
         margin_diff = new_margin - account.used_margin
         account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
 
-    def funding_settle(self, market: str, mark_price: float, funding_rate: float):
+    def settle_funding(self, market: str, mark_price: float, funding_rate: float):
         account = self._perps_accounts[market]
 
         # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0

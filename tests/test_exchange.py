@@ -10,14 +10,14 @@ def test1():
     cex.sell(symbol="B", price=60, shares=0.3)
     cex.inspect()
 
-    cex.trading_settle(prices={"A": 120, "B": 50})
+    cex.settle_trading(prices={"A": 120, "B": 50})
     cex.inspect('settle')
     cex.record_metric(datetime.now())
     
     cex.clear("B", price=59)
     cex.inspect()
 
-    cex.trading_settle(prices={"A": 90, "B": 80})
+    cex.settle_trading(prices={"A": 90, "B": 80})
     cex.inspect('settle')
     cex.record_metric(datetime.now())
 
