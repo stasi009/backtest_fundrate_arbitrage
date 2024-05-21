@@ -118,12 +118,9 @@ class FundingArbTrade:
             order.close(price=ex2prices[order.ex_name])
         self.close_tm = tm
 
-    def accumulate_funding(self, ex2markprices: dict[str, float], ex2fundrates: dict[str, float]):
-        """
-        Args:
-            mark_prices (dict[str, float]): exchange->market price
-            funding_rates (dict[str, float]): exchange->funding rate
-        """
+    def settle(
+        self, ex2prices: dict[str, float], ex2markprices: dict[str, float], ex2fundrates: dict[str, float]
+    ):
         if not self.is_active:
             return
 
@@ -131,16 +128,21 @@ class FundingArbTrade:
 
         for direction in ["long", "short"]:
             order = self._orders[direction]
+
             fundrate = ex2fundrates[order.ex_name]
             current_fundrates[direction] = fundrate
-            order.accumulate_funding(mark_price=ex2markprices[order.ex_name], funding_rate=fundrate)
+
+            order.settle(
+                contract_price=ex2prices[order.ex_name],
+                mark_price=ex2markprices[order.ex_name],
+                funding_rate=fundrate,
+            )
 
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
         assert self.latest_fundrate_diff > 0
 
     @property
     def trade_pnl(self):
-        assert not self.is_active  # close_price is only available after closing the trade
         return sum(self._orders[k].trade_pnl for k in ["long", "short"])
 
     @property
