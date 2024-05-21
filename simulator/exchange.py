@@ -40,7 +40,7 @@ class PerpsAccount:
                 raise ValueError(f"Unknown CashItem={cash_item}")
 
 
-class NotEnoughMargin(Exception):
+class MarginCall(Exception):
     pass
 
 
@@ -66,7 +66,7 @@ class Exchange:
         temp = self._cash + delta_cash
         if temp <= 0:
             logging.critical(f"Not Enough Margin: original cash={self._cash},delta_cash={delta_cash}")
-            raise NotEnoughMargin()
+            raise MarginCall()
         self._cash = temp
 
     def _close(self, market: str, is_long: int, price: float, shares: float):
