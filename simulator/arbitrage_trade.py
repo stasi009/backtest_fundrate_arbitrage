@@ -113,19 +113,16 @@ class FundingArbTrade:
         Args:
             prices (dict[str, float]): exchange->price
         """
-        for direction in ["long", "short"]:
-            order = self._orders[direction]
+        for direction, order in self._orders.items():
             order.close(price=ex2prices[order.ex_name])
         self.close_tm = tm
 
     def diff_fundrates(self, ex2fundrates: dict[str, float]):
-        current_fundrates = {}
-
-        for direction in ["long", "short"]:
-            order = self._orders[direction]
-            current_fundrates[direction] = ex2fundrates[order.ex_name]
-
+        current_fundrates = {
+            direction: ex2fundrates[order.ex_name] for direction, order in self._orders.items()
+        }
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
+        return self.latest_fundrate_diff
 
     def settle(
         self, ex2prices: dict[str, float], ex2markprices: dict[str, float], ex2fundrates: dict[str, float]
@@ -133,9 +130,7 @@ class FundingArbTrade:
         if not self.is_active:
             return
 
-        for direction in ["long", "short"]:
-            order = self._orders[direction]
-
+        for direction, order in self._orders.items():
             order.settle(
                 contract_price=ex2prices[order.ex_name],
                 mark_price=ex2markprices[order.ex_name],
