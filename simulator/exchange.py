@@ -20,12 +20,12 @@ class PerpsAccount:
 
         self._cash_callback = cash_callback
 
-    def update(self, cash_item: CashItem, delta_cash: float, margin_call: bool = True):
+    def update(self, cash_item: CashItem, delta_cash: float):
         """account账户下的cash_item这个会计科目，导致了delta_cash的资金变化
         - cash_item：资金变化反映在哪个会计科目上
         - delta_cash：delta_cash>0(<0)说明该变化导致cash增加（减少）
         """
-        self._cash_callback(delta_cash, margin_call)
+        self._cash_callback(delta_cash)
 
         match cash_item:
             case CashItem.MARGIN:
@@ -41,11 +41,7 @@ class PerpsAccount:
 
 
 class NotEnoughMargin(Exception):
-    def __init__(self, margin_call: bool) -> None:
-        # margin_call: False，catch后，执行一些逻辑，程序可以继续。主要用于由用户主动行为（比如开仓）触发的“可能”margin call，此时用户只要放弃想执行的动作即可
-        # TODO: 但是由于不能执行原子动作，catch这个异常后，需要回退的东西太多了，而如果不能正确回退，那让程序继续也没有意义
-        # margin_call: True，不能catch后让程序继续，必须停止程序。主要用于mark-to-market导致的被动margin call
-        self.margin_call = margin_call
+    pass
 
 
 class Exchange:
@@ -66,11 +62,11 @@ class Exchange:
     def account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]
 
-    def _update_cash(self, delta_cash: float, margin_call: bool):
+    def _update_cash(self, delta_cash: float):
         temp = self._cash + delta_cash
         if temp <= 0:
             logging.critical(f"Not Enough Margin: original cash={self._cash},delta_cash={delta_cash}")
-            raise NotEnoughMargin(margin_call)
+            raise NotEnoughMargin()
         self._cash = temp
 
     def _close(self, market: str, is_long: int, price: float, shares: float):
