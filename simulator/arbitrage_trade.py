@@ -6,11 +6,12 @@ import logging
 
 
 class Order:
-    def __init__(self, market: str, exchange: Exchange, is_long: int) -> None:
+    def __init__(self, market: str, exchange: Exchange, is_long: int, slippage: float) -> None:
         self._market = market
         self._exchange = exchange
         self._is_long = is_long
         self._init_account = None
+        self._slippage = slippage
 
     @property
     def ex_name(self):
@@ -23,14 +24,24 @@ class Order:
     def restore_account(self, account: PerpsAccount) -> None:
         self._exchange.set_account(self._market, account)
 
+    def slip_price(self, price: float):
+        # is_long >0，滑点使买得更昂贵
+        # is_long <0，滑点使卖得更便宜
+        return price * (1 + self._is_long * self._slippage)
+
     def open(self, shares: float, price: float):
         if self._init_account is None:
             # open可用于加仓，所以只在第1次open时才快照
             self._init_account = self.clone_account
-        self._exchange.trade(market=self._market, is_long=self._is_long, price=price, shares=shares)
+        self._exchange.trade(
+            market=self._market,
+            is_long=self._is_long,
+            price=self.slip_price(price),
+            shares=shares,
+        )
 
     def close(self, price: float):
-        self._exchange.clear(market=self._market, price=price)
+        self._exchange.clear(market=self._market, price=self.slip_price(price))
 
     def settle(self, contract_price: float, mark_price: float, funding_rate: float):
         self._exchange.settle_trading(market=self._market, price=contract_price)
@@ -54,8 +65,8 @@ class FundingArbTrade:
         self._config = config
 
         self._orders = {
-            "long": Order(market=market, exchange=long_ex, is_long=1),
-            "short": Order(market=market, exchange=short_ex, is_long=-1),
+            "long": Order(market=market, exchange=long_ex, is_long=1, slippage=config.slippage),
+            "short": Order(market=market, exchange=short_ex, is_long=-1, slippage=config.slippage),
         }
 
         self.open_tm: datetime = None  # 初次开仓的时间

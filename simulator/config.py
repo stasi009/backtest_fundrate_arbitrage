@@ -7,6 +7,7 @@ class Config:
     init_cash: float
     margin_rate: float
     commission: float
+    slippage: float
 
     ordersize_usd: float
     fundrate_diff_open: float  # funding rate diff > this threshold, open trades
