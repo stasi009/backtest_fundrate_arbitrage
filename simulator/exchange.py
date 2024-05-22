@@ -61,12 +61,10 @@ class Exchange:
 
     def get_account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]
-    
-    def set_account(self,market:str, account:PerpsAccount)->None:
-        """ 主要用于回滚操作，将某个market状态回滚至操作前的状态
-        """
+
+    def set_account(self, market: str, account: PerpsAccount) -> None:
+        """主要用于回滚操作，将某个market状态回滚至操作前的状态"""
         self._perps_accounts[market] = account
-        
 
     def _update_cash(self, delta_cash: float):
         temp = self._cash + delta_cash
@@ -79,7 +77,7 @@ class Exchange:
         account = self._perps_accounts[market]
 
         reduce_margin = shares / abs(account.long_short_shares) * account.used_margin  # 肯定是个正数
-        account.update(cash_item=CashItem.MARGIN, delta_cash=reduce_margin)
+        account.update(cash_item=CashItem.MARGIN, delta_cash=reduce_margin)  # 释放保证金
 
         # is_long>0，买入平仓，说明平的是空仓，price < hold_price才profit
         # is_long<0，卖出平仓，说明平的是多仓，price > hold_price才profit
@@ -89,7 +87,12 @@ class Exchange:
         # is_long>0，买入平仓，说明平的是空仓，原来的long_short_shares<0，加上正shares，持仓才变小
         # is_long<0，卖出平仓，说明平的是多仓，原来的long_short_shares>0，加上负shares，持仓才变小
         # 另外，平仓时不用更新hold price，因为PnL被转移到cash账户中了，不在资产帐户中
+        old_shares = account.long_short_shares
         account.long_short_shares += is_long * shares
+        assert abs(account.long_short_shares) < abs(old_shares)
+
+        if abs(account.long_short_shares) <= 1e-6:
+            account.hold_price = 0
 
         logging.info(
             f"[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
@@ -101,10 +104,11 @@ class Exchange:
         new_margin = shares * price * account.margin_rate  # 新建仓位需要的保证金
         account.update(cash_item=CashItem.MARGIN, delta_cash=-new_margin)
 
-        total_cost = abs(account.long_short_shares) * account.hold_price + shares * price
+        old_shares = abs(account.long_short_shares)
+        total_cost =  old_shares * account.hold_price + shares * price
         account.long_short_shares += is_long * shares
+        assert abs(account.long_short_shares) > old_shares
         new_hold_price = total_cost / abs(account.long_short_shares)
-        assert (account.hold_price == 0) or (0 < new_hold_price < account.hold_price)
 
         account.hold_price = new_hold_price
         logging.info(
