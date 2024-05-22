@@ -105,12 +105,11 @@ class Exchange:
         account.update(cash_item=CashItem.MARGIN, delta_cash=-new_margin)
 
         old_shares = abs(account.long_short_shares)
-        total_cost =  old_shares * account.hold_price + shares * price
+        total_cost = old_shares * account.hold_price + shares * price
         account.long_short_shares += is_long * shares
         assert abs(account.long_short_shares) > old_shares
-        new_hold_price = total_cost / abs(account.long_short_shares)
 
-        account.hold_price = new_hold_price
+        account.hold_price = total_cost / abs(account.long_short_shares)
         logging.info(
             f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
         )
@@ -167,6 +166,7 @@ class Exchange:
 
     def settle_trading(self, market: str, price: float):
         account = self._perps_accounts[market]
+        assert abs(account.long_short_shares) > 1e-6, "zero-position account has NO chance to be settled"
 
         # ----------- mark to market
         # long_short_shares>0，持有多仓，price>hold_price才profit
@@ -182,6 +182,7 @@ class Exchange:
 
     def settle_funding(self, market: str, mark_price: float, funding_rate: float):
         account = self._perps_accounts[market]
+        assert abs(account.long_short_shares) > 1e-6, "zero-position account has NO chance to be settled"
 
         # long_short_shares>0==>long position, funding_rate>0==>long pay short, pnl<0
         # long_short_shares>0==>long position, funding_rate<0==>short pay long, pnl>0
@@ -207,13 +208,14 @@ class Exchange:
         print(f"\n\n************************* {header}")
         # ---------- summary
         metric_keys = ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]
-        pt = PrettyTable(metric_keys, title="Summary")
+        pt = PrettyTable(metric_keys, title=f"Exchange[{self.name}]")
         metric = self._current_metric
         pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
         print(pt)
         # ---------- each account
         pt = PrettyTable(
-            ["Market", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"], title="Perps Accounts"
+            ["Market", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"],
+            title=f"{self.name} Perps Accounts",
         )
         for market, account in self._perps_accounts.items():
             pt.add_row(
