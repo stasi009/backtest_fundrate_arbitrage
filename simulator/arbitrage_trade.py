@@ -95,12 +95,12 @@ class FundingArbTrade:
         """如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
         无论long ex or short ex哪个发生margin call，两个ex都要回滚，因为只单边建仓是没有对冲的，极其危险的
         """
-        cloned_accounts = {self._orders[direction].clone_account for direction in ["long", "short"]}
+        cloned_accounts = {direction: order.clone_account for direction, order in self._orders.items()}
         try:
             self._open(tm=tm, usd_amount=usd_amount, ex2prices=ex2prices, fundrate_diff=fundrate_diff)
             return True
         except MarginCall:
-            logging.error(f"!!! Margin Call on {self.name}, Drop Open Action")
+            logging.error(f"!!! Margin Call on {self.name}, Drop Open Actions")
             for direction, order in self._orders.items():
                 order.restore_account(cloned_accounts[direction])
             return False

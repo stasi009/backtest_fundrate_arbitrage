@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 from datetime import datetime
 from simulator.data_feeds import DataFeeds, FeedOnce
 from simulator.exchange import Exchange
@@ -56,13 +57,16 @@ class FundingArbStrategy:
 
                 frate_diff = abs(fundrate1 - fundrate2)
                 if frate_diff > max_frate_diff:
+                    # 如果两个fundrate都正，在fundrate更小的ex long，支付较少funding，在fundrate更大的ex short，收取较多的funding
+                    # 如果两个fundrate都负，在fundrate更负的ex long，收取较多funding，在abs(fundrate)小的ex short，支付较少funding
+                    # 如果两个fundrate一正一负，在fundrate<0的ex long，收取funding，在fundrate>0的ex short，收取funding
                     long_ex = ex1_name if fundrate1 < fundrate2 else ex2_name
                     short_ex = ex2_name if fundrate1 < fundrate2 else ex1_name
                     max_frate_diff = frate_diff
 
         return ArbPair(market=market, long_ex=long_ex, short_ex=short_ex, fundrate_diff=max_frate_diff)
 
-    def __open(self, arbpair: ArbPair):
+    def __open(self, arbpair: ArbPair) -> Tuple[FundingArbTrade, FundingArbTrade]:
         """返回两个trade，第1个是要关闭的trade，第2个是要开仓或加仓的trade"""
         new_trade = FundingArbTrade(
             market=arbpair.market,
@@ -77,6 +81,7 @@ class FundingArbStrategy:
 
         old_trade = self._active_arb_trades[arbpair.market]
 
+        # 本次发现的best pair与上次发现的best pair相同，而且fundrate_diff进一步扩大，加仓
         if (old_trade.name == new_trade.name) and (
             arbpair.fundrate_diff
             >= old_trade.open_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
@@ -84,12 +89,13 @@ class FundingArbStrategy:
             print(f"increase position on {new_trade.name}")
             return None, old_trade  # 加仓
 
+        # 本次发现的best pair与上次发现的best pair不同，并且fundrate_diff大了很多，换仓
         if (old_trade.name != new_trade.name) and (
             arbpair.fundrate_diff
             >= old_trade.latest_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
         ):
             print(f"change trade from {old_trade.name} to {new_trade.name}")
-            # 关闭active_trade，开仓new_trade
+            # 关闭old active trade，开仓new_trade
             return old_trade, new_trade
 
         return None, None
@@ -107,7 +113,7 @@ class FundingArbStrategy:
         """
         for market in self._config.markets:
             arbpair = self._best_arb_pair(market=market, ex_fundrates=funding_rates[market])
-            if arbpair.fundrate_diff < self._config.fundrate_diff_open:
+            if arbpair.fundrate_diff < self._config.fundrate_diff_open:  # fundingrate差异不够大
                 continue
 
             trade2close, trade2open = self.__open(arbpair)
@@ -137,7 +143,7 @@ class FundingArbStrategy:
         for market, trade in self._active_arb_trades.items():
             trade.diff_fundrates(funding_rates[market])
 
-            if trade.latest_fundrate_diff < self._config.fundrate_diff_close:
+            if trade.latest_fundrate_diff < self._config.fundrate_diff_close:  # fundrate差异收窄
                 trade.close(tm=tm, ex2prices=prices[market])
                 self._closed_trades.append(trade)
             else:
