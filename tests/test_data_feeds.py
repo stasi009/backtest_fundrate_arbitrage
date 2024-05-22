@@ -41,8 +41,16 @@ def test_data_feeds():
         print(f"\n------------{idx}: {feed.timestamp}")
         pprint(feed.open_price)
         pprint(feed.funding_rates)
-
+        
+def temp1():
+    a = {'A':1,'B':None,'C':float('nan')}
+    a = pd.Series(a)
+    print(a)
+    print(a.isna())
+    print("---------------")
+    print(a.isna().any())
 
 if __name__ == "__main__":
     # create_mock_datas()
-    test_data_feeds()
+    # test_data_feeds()
+    temp1()
