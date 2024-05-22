@@ -147,12 +147,20 @@ class FundingArbStrategy:
     def run(self):
         for feed in self._data_feeds:
             self.close(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
-
             self.open(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
 
-            for market, trade in self._active_arb_trades.items():
-                trade.settle(
-                    ex2prices=feed.close_prices[market],
-                    ex2markprices=feed.mark_prices[market],
-                    ex2fundrates=feed.funding_rates[market],
-                )
+            if feed.is_last:
+                for market, trade in self._active_arb_trades.items():
+                    trade.close(tm=feed.timestamp, ex2prices=feed.close_prices[market])
+                    self._closed_trades.append(trade)
+                    trade.record_metrics(feed.timestamp)
+
+            else:
+                for market, trade in self._active_arb_trades.items():
+                    trade.settle(
+                        ex2prices=feed.close_prices[market],
+                        ex2markprices=feed.mark_prices[market],
+                        ex2fundrates=feed.funding_rates[market],
+                    )
+                    if feed.timestamp.hour == 23:  # 每天记录一次指标
+                        trade.record_metrics(feed.timestamp)
