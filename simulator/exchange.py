@@ -50,7 +50,7 @@ class Exchange:
         self.name = name
 
         self.__init_cash = init_cash
-        self._cash = init_cash  # 可用资金
+        self.__cash = init_cash  # 可用资金
         self.commission = commission
 
         self._perps_accounts = {
@@ -59,6 +59,9 @@ class Exchange:
         }
 
         self._metrics = []
+    
+    @property
+    def cash(self): return self.__cash
 
     def get_account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]
@@ -68,11 +71,11 @@ class Exchange:
         self._perps_accounts[market] = account
 
     def _update_cash(self, delta_cash: float):
-        temp = self._cash + delta_cash
+        temp = self.__cash + delta_cash
         if temp <= 0:
-            logging.critical(f"Not Enough Margin: original cash={self._cash},delta_cash={delta_cash}")
+            logging.critical(f"Not Enough Margin: original cash={self.__cash},delta_cash={delta_cash}")
             raise MarginCall()
-        self._cash = temp
+        self.__cash = temp
 
     def _close(self, market: str, is_long: int, price: float, shares: float):
         account = self._perps_accounts[market]
@@ -154,13 +157,13 @@ class Exchange:
             total_used_margin += account.used_margin
             total_trade_pnl += account.trade_pnl
             total_fund_pnl += account.fund_pnl
-        total_value = self._cash + total_used_margin
+        total_value = self.__cash + total_used_margin
         assert abs(self.__init_cash + total_trade_pnl + total_fund_pnl - total_value) < 1e-6
 
         return dict(
             used_margin=total_used_margin,
-            cash=self._cash,
-            total_value=self._cash + total_used_margin,
+            cash=self.__cash,
+            total_value=total_value,
             trade_pnl=total_trade_pnl,
             fund_pnl=total_fund_pnl,
         )
