@@ -41,11 +41,16 @@ class Order:
         )
 
     def close(self, price: float):
+        # 套利只存在一个long ex和一个short ex之间，不存在multi long ex vs. multi short ex的情况
+        # 换仓也会先把原来的仓位关掉，所以可以放心clear所有仓位
         self._exchange.clear(market=self._market, price=self.slip_price(price))
 
     def settle(self, contract_price: float, mark_price: float, funding_rate: float):
         self._exchange.settle_trading(market=self._market, price=contract_price)
         self._exchange.settle_funding(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
+
+    def record_metrics(self, timestamp: datetime):
+        self._exchange.record_metrics(timestamp)
 
     @property
     def trade_pnl(self):
@@ -61,7 +66,7 @@ class Order:
 class FundingArbTrade:
 
     def __init__(self, market: str, long_ex: Exchange, short_ex: Exchange, config: Config) -> None:
-        self.market = market  # 为了对冲，symbol肯定是唯一的
+        self.market = market
         self._config = config
 
         self._orders = {
@@ -72,8 +77,11 @@ class FundingArbTrade:
         self.open_tm: datetime = None  # 初次开仓的时间
         self.close_tm: datetime = None
 
-        self.latest_fundrate_diff = None
-        self.open_fundrate_diff = None
+        self.latest_fundrate_diff: float = None  # 最近一次的funding rate diff
+        self.open_fundrate_diff: float = None  # 开仓时的funding rate diff
+
+        self.trade_pnl: float = None
+        self.fund_pnl: float = None
 
     @property
     def is_active(self):
@@ -103,14 +111,13 @@ class FundingArbTrade:
             usd_amount: 因为不同market价格差异较大，很难统一设置交易份额，而设置交易金额比较直觉
             prices (dict[str, float]): exchange->price
         """
-        shares = None
-        for direction in ["long", "short"]:
-            tmp = usd_amount / ex2prices[self._orders[direction].ex_name]
+        shares = None  # 必须买卖相同shares才能对冲delta
+        for order in self._orders.values():
+            tmp = usd_amount / ex2prices[order.ex_name]
             if shares is None or tmp < shares:
                 shares = tmp
 
-        for direction in ["long", "short"]:
-            order = self._orders[direction]
+        for order in self._orders.values():
             order.open(shares=shares, price=ex2prices[order.ex_name])
 
         self.open_fundrate_diff = fundrate_diff
@@ -124,8 +131,14 @@ class FundingArbTrade:
         Args:
             prices (dict[str, float]): exchange->price
         """
+        self.trade_pnl = 0
+        self.fund_pnl = 0
+
         for order in self._orders.values():
             order.close(price=ex2prices[order.ex_name])
+            self.trade_pnl += order.trade_pnl  # 固化下来
+            self.fund_pnl += order.fund_pnl
+
         self.close_tm = tm
 
     def diff_fundrates(self, ex2fundrates: dict[str, float]):
@@ -138,8 +151,7 @@ class FundingArbTrade:
     def settle(
         self, ex2prices: dict[str, float], ex2markprices: dict[str, float], ex2fundrates: dict[str, float]
     ):
-        if not self.is_active:
-            return
+        assert self.is_active
 
         for order in self._orders.values():
             order.settle(
@@ -151,10 +163,6 @@ class FundingArbTrade:
         # latest_fundrate_diff<=0的，在settle之前就已经关闭了
         assert self.latest_fundrate_diff > 0
 
-    @property
-    def trade_pnl(self):
-        return sum(self._orders[k].trade_pnl for k in ["long", "short"])
-
-    @property
-    def fund_pnl(self):
-        return sum(self._orders[k].fund_pnl for k in ["long", "short"])
+    def record_metrics(self, timestamp: datetime):
+        for order in self._orders.values():
+            order.record_metrics(timestamp)

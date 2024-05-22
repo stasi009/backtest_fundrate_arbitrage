@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime
 import logging
 from prettytable import PrettyTable
 from enum import Enum
@@ -191,7 +192,7 @@ class Exchange:
         pnl = -funding_rate * account.long_short_shares * mark_price
         account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
 
-    def record_metric(self, timestamp) -> None:
+    def record_metrics(self, timestamp: datetime) -> None:
         # ------------ calculate metrics
         metric = self._current_metric
         metric["timestamp"] = timestamp
