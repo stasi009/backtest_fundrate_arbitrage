@@ -8,6 +8,7 @@ from collections import defaultdict
 class FeedOnce:  # 某个时刻下的数据
     def __init__(self) -> None:
         self.timestamp: datetime = None
+        self.is_last: bool = None
         # 外层key是market，内层dict是exchange -> price / funding rate
         self.open_prices: dict[str, dict[str, float]] = defaultdict(dict)
         self.close_prices: dict[str, dict[str, float]] = defaultdict(dict)
@@ -75,6 +76,7 @@ class DataFeeds:
     def __next__(self):
         while self._index < self._total_rows:
             feed = self.__read_current()
+            feed.is_last = self._index == (self._total_rows - 1)
 
             self._index += 1
 
