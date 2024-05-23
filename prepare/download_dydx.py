@@ -5,6 +5,8 @@ from datetime import timezone, datetime, timedelta, time
 import typer
 from prepare.common import UTC_TM_FORMAT, truncate_to_hour, check_http_error, safe_output_path
 
+SLEEP_SECONDS = 0.3
+
 
 class DownloaderBase:
     def __init__(self, market: str, data_type: str) -> None:
@@ -41,7 +43,7 @@ class DownloaderBase:
                     f"downloaded DYDX[{self.market}] {len(results)} {self.data_type} {first_time} ~ {end_time}"
                 )
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(SLEEP_SECONDS)
                 end_time = first_time - timedelta(seconds=1)
 
         df = pd.DataFrame(all_results)
@@ -50,6 +52,8 @@ class DownloaderBase:
 
 
 class FundRateDownloader(DownloaderBase):
+    """ https://dydxprotocol.github.io/v3-teacher/#get-historical-funding
+    """
     def __init__(self, market: str) -> None:
         super().__init__(market, "FundRate")
 
@@ -96,6 +100,8 @@ class CandleDownloader(DownloaderBase):
 async def __main__(market: str, start_time: datetime, end_time: datetime):
     fundrate_downloader = FundRateDownloader(market)
     df_fundrates = await fundrate_downloader.download(start_time=start_time, end_time=end_time)
+
+    await asyncio.sleep(SLEEP_SECONDS)
 
     candle_downloader = CandleDownloader(market)
     df_candles = await candle_downloader.download(start_time=start_time, end_time=end_time)
