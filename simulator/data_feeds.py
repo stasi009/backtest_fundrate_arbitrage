@@ -9,11 +9,13 @@ class FeedOnce:  # 某个时刻下的数据
     def __init__(self) -> None:
         self.timestamp: datetime = None
         self.is_last: bool = None
+        
         # 外层key是market，内层dict是exchange -> price / funding rate
         self.open_prices: dict[str, dict[str, float]] = defaultdict(dict)
         self.close_prices: dict[str, dict[str, float]] = defaultdict(dict)
         self.mark_prices: dict[str, dict[str, float]] = defaultdict(dict)
         self.funding_rates: dict[str, dict[str, float]] = defaultdict(dict)
+        
         self.__col2container = {
             "open_price": self.open_prices,
             "close_price": self.close_prices,
@@ -56,8 +58,7 @@ class DataFeeds:
 
         for market in self._markets:
             for ex in self._exchanges:
-                df = self._datas[f"{ex}/{market}"]
-                row = df.iloc[self._index, :]
+                row = self._datas[f"{ex}/{market}"].iloc[self._index, :]
 
                 # TODO:只要存在NaN，就放弃这个timestamp的所有market+exchange的数据
                 if row.isna().any():
