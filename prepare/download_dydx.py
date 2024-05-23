@@ -3,103 +3,116 @@ import httpx
 import pandas as pd
 from datetime import timezone, datetime, timedelta, time
 import typer
-from common import UTC_TM_FORMAT, truncate_to_hour, check_http_error, raw_data_path
-import logging
+from prepare.common import UTC_TM_FORMAT, truncate_to_hour, check_http_error, safe_output_path
+
 
 class DownloaderBase:
-    def _url(self,market:str):
+    def __init__(self, market: str) -> None:
+        self.market = market
+
+    def _url(self) -> str:
         raise NotImplementedError()
-    
-    def _parse(self,json:dict):
+
+    def _params(self, end_time: datetime) -> dict:
         raise NotImplementedError()
-    
-    async def download(self,market: str, start_time: datetime, end_time: datetime):
-        pass
 
-async def download_fundrates(market: str, start_time: datetime, end_time: datetime):
-    """https://dydxprotocol.github.io/v3-teacher/#get-historical-funding"""
-    # 别用urljoin，特别难用，api设计非常反直觉
-    url = f"https://api.dydx.exchange/v3/historical-funding/{market}"
+    def _parse(self, json: dict):
+        raise NotImplementedError()
 
-    all_results = []
-    async with httpx.AsyncClient() as client:
-        while end_time >= start_time:
-            response = await client.get(
-                url, params={"effectiveBeforeOrAt": end_time.strftime(UTC_TM_FORMAT)}
-            )
-            check_http_error(response)
+    async def download(self, start_time: datetime, end_time: datetime):
+        url = self._url()
 
-            results = response.json()["historicalFunding"]
-            if len(results) == 0:
-                break
+        all_results = []
+        async with httpx.AsyncClient() as client:
+            while end_time >= start_time:
+                response = await client.get(url, params=self._params(end_time))
+                check_http_error(response)
 
-            results = [
-                {
-                    "timestamp": truncate_to_hour(r["effectiveAt"]),
-                    "fund_rate": r["rate"],
-                    # https://dydxprotocol.github.io/v3-teacher/#funding-payment-calculation
-                    # 所谓的price，即oracle price，参与计算funding payment
-                    "mark_price": r["price"],
-                }
-                for r in results
-            ]
-            all_results.extend(results)
+                results = self._parse(response.json())
+                if len(results) == 0:
+                    break
 
-            # 按时间倒序存放每小时的funding rate，最后一行才是最老的
-            first_time = results[-1]["effectiveAt"]
-            print(f"downloaded DYDX[{market}] {len(results)} funding rate {first_time} ~ {end_time}")
+                all_results.extend(results)
 
-            await asyncio.sleep(1)
-            end_time = first_time - timedelta(seconds=1)
+                # 按时间倒序存放每小时的funding rate，最后一行才是最老的
+                first_time = results[-1]["timestamp"]
+                print(
+                    f"downloaded DYDX[{self.market}] {len(results)} funding rate {first_time} ~ {end_time}"
+                )
 
-    return pd.DataFrame(all_results)
+                await asyncio.sleep(1)
+                end_time = first_time - timedelta(seconds=1)
 
-async def download_ohlc(market: str, start_time: datetime, end_time: datetime):
-    """https://dydxprotocol.github.io/v3-teacher/#get-candles-for-market"""
-    url = f"https://api.dydx.exchange/v3/candles/{market}"
+        df = pd.DataFrame(all_results)
+        df.set_index("timestamp", inplace=True)
+        return df
 
-    all_results = []
-    async with httpx.AsyncClient() as client:
-        while end_time >= start_time:
-            response = await client.get(
-                url, params={"toISO": end_time.strftime(UTC_TM_FORMAT), "resolution": "1HOUR"}
-            )
-            check_http_error(response)
 
-            results = response.json()["candles"]
-            if len(results) == 0:
-                break
+class FundRateDownloader(DownloaderBase):
+    def __init__(self, market: str) -> None:
+        super().__init__(market)
 
-            results = [
-                {
-                    "timestamp": truncate_to_hour(r["startedAt"]),
-                    "open_price": r["open"],
-                    "close_price": r["close"],
-                }
-                for r in results
-            ]
-            all_results.extend(results)
+    def _url(self) -> str:
+        return f"https://api.dydx.exchange/v3/historical-funding/{self.market}"
 
-            # 按时间倒序存放每小时的funding rate，最后一行才是最老的
-            first_time = results[-1]["effectiveAt"]
-            print(f"downloaded DYDX[{market}] {len(results)} funding rate {first_time} ~ {end_time}")
+    def _params(self, end_time: datetime) -> dict:
+        return {"effectiveBeforeOrAt": end_time.strftime(UTC_TM_FORMAT)}
 
-            await asyncio.sleep(1)
-            end_time = first_time - timedelta(seconds=1)
+    def _parse(self, json: dict):
+        return [
+            {
+                "timestamp": truncate_to_hour(r["effectiveAt"]),
+                "fund_rate": r["rate"],
+                # https://dydxprotocol.github.io/v3-teacher/#funding-payment-calculation
+                # 所谓的price，即oracle price，参与计算funding payment
+                "mark_price": r["price"],
+            }
+            for r in json["historicalFunding"]
+        ]
 
-    return pd.DataFrame(all_results)
+
+class CandleDownloader(DownloaderBase):
+    def __init__(self, market: str) -> None:
+        super().__init__(market)
+
+    def _url(self) -> str:
+        return f"https://api.dydx.exchange/v3/candles/{self.market}"
+
+    def _params(self, end_time: datetime) -> dict:
+        return {"toISO": end_time.strftime(UTC_TM_FORMAT), "resolution": "1HOUR"}
+
+    def _parse(self, json: dict):
+        return [
+            {
+                "timestamp": truncate_to_hour(r["startedAt"]),
+                "open_price": r["open"],
+                "close_price": r["close"],
+            }
+            for r in json["candles"]
+        ]
+
+
+async def __main__(market: str, start_time: datetime, end_time: datetime):
+    fundrate_downloader = FundRateDownloader(market)
+    df_fundrates = await fundrate_downloader.download(start_time=start_time, end_time=end_time)
+
+    candle_downloader = CandleDownloader(market)
+    df_candles = await candle_downloader.download(start_time=start_time, end_time=end_time)
+
+    df = df_fundrates.join(df_candles, how="outer")
+    outfname = safe_output_path(f"data/raw/dydx_{market}.csv")
+    df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
 
 def main(market: str, start_day: datetime, end_day: datetime):
-    end_time = datetime.combine(end_day.date(), time(23, 0, 0))  # 终止那天的最后一个小时
+    end_time = datetime.combine(end_day.date(), time(23, 59, 59))  # 终止那天的最后一个小时
     start_time = datetime.combine(start_day.date(), time())  # 开始那天的第一个小时
 
     start_time = start_time.replace(tzinfo=timezone.utc)
     end_time = end_time.replace(tzinfo=timezone.utc)
 
-    asyncio.run(download_fundrates(market=market, start_time=start_time, end_time=end_time))
+    asyncio.run(__main__(market=market, start_time=start_time, end_time=end_time))
 
 
 if __name__ == "__main__":
-    # logging.basicConfig(level=logging.INFO)
     typer.run(main)
