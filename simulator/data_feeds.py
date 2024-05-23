@@ -40,7 +40,7 @@ class DataFeeds:
         for ex in exchanges:
             for market in markets:
 
-                fname = data_dir / f"{ex}/{market}.csv"
+                fname = data_dir / f"{ex}_{market}.csv"
                 df = pd.read_csv(fname, index_col="timestamp", parse_dates=True)
 
                 if self._total_rows is None:
