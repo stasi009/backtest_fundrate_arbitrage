@@ -9,4 +9,4 @@ models
 model.png
 *_profile_report.html
 .ipynb_checkpoints
-data/test*/*
+data/*
