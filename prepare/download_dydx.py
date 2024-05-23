@@ -7,8 +7,9 @@ from prepare.common import UTC_TM_FORMAT, truncate_to_hour, check_http_error, sa
 
 
 class DownloaderBase:
-    def __init__(self, market: str) -> None:
+    def __init__(self, market: str, data_type: str) -> None:
         self.market = market
+        self.data_type = data_type
 
     def _url(self) -> str:
         raise NotImplementedError()
@@ -37,7 +38,7 @@ class DownloaderBase:
                 # 按时间倒序存放每小时的funding rate，最后一行才是最老的
                 first_time = results[-1]["timestamp"]
                 print(
-                    f"downloaded DYDX[{self.market}] {len(results)} funding rate {first_time} ~ {end_time}"
+                    f"downloaded DYDX[{self.market}] {len(results)} {self.data_type} {first_time} ~ {end_time}"
                 )
 
                 await asyncio.sleep(1)
@@ -50,7 +51,7 @@ class DownloaderBase:
 
 class FundRateDownloader(DownloaderBase):
     def __init__(self, market: str) -> None:
-        super().__init__(market)
+        super().__init__(market, "FundRate")
 
     def _url(self) -> str:
         return f"https://api.dydx.exchange/v3/historical-funding/{self.market}"
@@ -73,7 +74,7 @@ class FundRateDownloader(DownloaderBase):
 
 class CandleDownloader(DownloaderBase):
     def __init__(self, market: str) -> None:
-        super().__init__(market)
+        super().__init__(market, "Candle")
 
     def _url(self) -> str:
         return f"https://api.dydx.exchange/v3/candles/{self.market}"
@@ -100,6 +101,8 @@ async def __main__(market: str, start_time: datetime, end_time: datetime):
     df_candles = await candle_downloader.download(start_time=start_time, end_time=end_time)
 
     df = df_fundrates.join(df_candles, how="outer")
+    df.sort_index(inplace=True)
+
     outfname = safe_output_path(f"data/raw/dydx_{market}.csv")
     df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
