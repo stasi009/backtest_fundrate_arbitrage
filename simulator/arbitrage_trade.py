@@ -5,11 +5,13 @@ from datetime import datetime
 from copy import copy
 import logging
 
+
 @dataclass
 class BackupOrder:
     account: PerpsAccount
-    has_init_account: bool   
-    cash: float  
+    has_init_account: bool
+    cash: float
+
 
 class Order:
     def __init__(self, market: str, exchange: Exchange, is_long: int, slippage: float) -> None:
@@ -18,7 +20,6 @@ class Order:
         self._is_long = is_long
         self._init_account = None
         self._slippage = slippage
-
 
     @property
     def ex_name(self):
@@ -29,11 +30,11 @@ class Order:
         return BackupOrder(
             account=copy(self._exchange.get_account(self._market)),
             has_init_account=self._init_account is not None,
-            cash=self._exchange.cash
+            cash=self._exchange.cash,
         )
 
-    def restore(self,backup:BackupOrder) -> None:
-        self._exchange.set_account(self._market,backup.account )
+    def restore(self, backup: BackupOrder) -> None:
+        self._exchange.set_account(self._market, backup.account)
         self._exchange.cash = backup.cash
         if not backup.has_init_account:
             self._init_account = None
@@ -116,7 +117,7 @@ class FundingArbTrade:
         except MarginCall:
             logging.error(f"!!! Margin Call on {self.name}, Drop Open Actions")
             for direction, order in self._orders.items():
-                order.restore_account(backups[direction])
+                order.restore(backups[direction])
             return False
 
     def _open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
@@ -134,6 +135,7 @@ class FundingArbTrade:
         for order in self._orders.values():
             order.open(shares=shares, price=ex2prices[order.ex_name])
 
+        # 只有两个order都open成功而不抛出异常，下列代码才会执行，as expected
         self.open_fundrate_diff = fundrate_diff
         assert self.open_fundrate_diff > 0
 
@@ -159,6 +161,9 @@ class FundingArbTrade:
         current_fundrates = {
             direction: ex2fundrates[order.ex_name] for direction, order in self._orders.items()
         }
+        # 如果两个fundrate都正，在fundrate更小的ex long，支付较少funding，在fundrate更大的ex short，收取较多的funding
+        # 如果两个fundrate都负，在fundrate更负的ex long，收取较多funding，在abs(fundrate)小的ex short，支付较少funding
+        # 如果两个fundrate一正一负，在fundrate<0的ex long，收取funding，在fundrate>0的ex short，收取funding
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
         return self.latest_fundrate_diff
 
