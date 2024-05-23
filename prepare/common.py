@@ -32,7 +32,7 @@ def check_http_error(response: httpx.Response) -> None:
 
 
 def raw_data_path(exchange: str, market: str) -> Path:
-    data_dir = Path(f"raw_data/{exchange.lower()}")
+    data_dir = Path(f"data/raw/{exchange.lower()}")
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir / f"{market}.csv"
 
