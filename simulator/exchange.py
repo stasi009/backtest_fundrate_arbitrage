@@ -114,10 +114,10 @@ class Exchange:
         account.update(cash_item=CashItem.MARGIN, delta_cash=-new_margin)
 
         old_shares = abs(account.long_short_shares)
-        total_cost = old_shares * account.hold_price + shares * price
         account.long_short_shares += is_long * shares
         assert abs(account.long_short_shares) > old_shares
 
+        total_cost = old_shares * account.hold_price + shares * price
         account.hold_price = total_cost / abs(account.long_short_shares)
         logging.info(
             f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
@@ -153,26 +153,6 @@ class Exchange:
         is_long = 1 if account.long_short_shares < 0 else -1  # 平仓时的交易方向肯定与当前持仓方向相反
         self.trade(market=market, is_long=is_long, price=price, shares=abs(account.long_short_shares))
 
-    @property
-    def _current_metric(self):
-        total_used_margin = 0
-        total_trade_pnl = 0
-        total_fund_pnl = 0
-        for account in self._perps_accounts.values():
-            total_used_margin += account.used_margin
-            total_trade_pnl += account.trade_pnl
-            total_fund_pnl += account.fund_pnl
-        total_value = self.__cash + total_used_margin
-        assert abs(self.__init_cash + total_trade_pnl + total_fund_pnl - total_value) < 1e-6
-
-        return dict(
-            used_margin=total_used_margin,
-            cash=self.__cash,
-            total_value=total_value,
-            trade_pnl=total_trade_pnl,
-            fund_pnl=total_fund_pnl,
-        )
-
     def settle_trading(self, market: str, price: float):
         account = self._perps_accounts[market]
         assert abs(account.long_short_shares) > 1e-6, "zero-position account has NO chance to be settled"
@@ -200,11 +180,30 @@ class Exchange:
         pnl = -funding_rate * account.long_short_shares * mark_price
         account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
 
-    def record_metrics(self, timestamp: datetime) -> None:
-        # ------------ calculate metrics
-        metric = self._current_metric
-        metric["timestamp"] = timestamp
-        self._metrics.append(metric)
+    def record_metrics(self, timestamp: datetime) -> dict:
+        total_used_margin = 0
+        total_trade_pnl = 0
+        total_fund_pnl = 0
+        for account in self._perps_accounts.values():
+            total_used_margin += account.used_margin
+            total_trade_pnl += account.trade_pnl
+            total_fund_pnl += account.fund_pnl
+        total_value = self.__cash + total_used_margin
+        assert abs(self.__init_cash + total_trade_pnl + total_fund_pnl - total_value) < 1e-6
+
+        metric = dict(
+            timestamp=timestamp,
+            used_margin=total_used_margin,
+            cash=self.__cash,
+            total_value=total_value,
+            trade_pnl=total_trade_pnl,
+            fund_pnl=total_fund_pnl,
+        )
+        
+        if timestamp is not None:#算是隐藏控制选项，timestamp=None用于debug
+            self._metrics.append(metric)
+            
+        return metric
 
     @property
     def metric_history(self):
@@ -218,7 +217,7 @@ class Exchange:
         # ---------- summary
         metric_keys = ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]
         pt = PrettyTable(metric_keys, title=f"Exchange[{self.name}]")
-        metric = self._current_metric
+        metric = self.record_metrics(None)
         pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
         print(pt)
         # ---------- each account
