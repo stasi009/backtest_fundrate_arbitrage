@@ -59,9 +59,14 @@ class Exchange:
         }
 
         self._metrics = []
-    
+
     @property
-    def cash(self): return self.__cash
+    def cash(self):
+        return self.__cash
+
+    @cash.setter
+    def cash(self, value: float):
+        self.__cash = value
 
     def get_account(self, market: str) -> PerpsAccount:
         return self._perps_accounts[market]

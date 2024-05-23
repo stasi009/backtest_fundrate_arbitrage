@@ -1,9 +1,15 @@
 from simulator.exchange import Exchange, MarginCall, PerpsAccount
 from simulator.config import Config
+from dataclasses import dataclass
 from datetime import datetime
 from copy import copy
 import logging
 
+@dataclass
+class BackupOrder:
+    account: PerpsAccount
+    has_init_account: bool   
+    cash: float  
 
 class Order:
     def __init__(self, market: str, exchange: Exchange, is_long: int, slippage: float) -> None:
@@ -13,16 +19,24 @@ class Order:
         self._init_account = None
         self._slippage = slippage
 
+
     @property
     def ex_name(self):
         return self._exchange.name
 
     @property
-    def clone_account(self) -> PerpsAccount:
-        return copy(self._exchange.get_account(self._market))
+    def backup(self) -> BackupOrder:
+        return BackupOrder(
+            account=copy(self._exchange.get_account(self._market)),
+            has_init_account=self._init_account is not None,
+            cash=self._exchange.cash
+        )
 
-    def restore_account(self, account: PerpsAccount) -> None:
-        self._exchange.set_account(self._market, account)
+    def restore(self,backup:BackupOrder) -> None:
+        self._exchange.set_account(self._market,backup.account )
+        self._exchange.cash = backup.cash
+        if not backup.has_init_account:
+            self._init_account = None
 
     def slip_price(self, price: float):
         # is_long >0，滑点使买得更昂贵
@@ -32,7 +46,7 @@ class Order:
     def open(self, shares: float, price: float):
         if self._init_account is None:
             # open可用于加仓，所以只在第1次open时才快照
-            self._init_account = self.clone_account
+            self._init_account = copy(self._exchange.get_account(self._market))
         self._exchange.trade(
             market=self._market,
             is_long=self._is_long,
@@ -95,14 +109,14 @@ class FundingArbTrade:
         """如果本次开仓导致margin call，回滚对账户的修改，相当于放弃本次操作
         无论long ex or short ex哪个发生margin call，两个ex都要回滚，因为只单边建仓是没有对冲的，极其危险的
         """
-        cloned_accounts = {direction: order.clone_account for direction, order in self._orders.items()}
+        backups = {direction: order.backup for direction, order in self._orders.items()}
         try:
             self._open(tm=tm, usd_amount=usd_amount, ex2prices=ex2prices, fundrate_diff=fundrate_diff)
             return True
         except MarginCall:
             logging.error(f"!!! Margin Call on {self.name}, Drop Open Actions")
             for direction, order in self._orders.items():
-                order.restore_account(cloned_accounts[direction])
+                order.restore_account(backups[direction])
             return False
 
     def _open(self, tm: datetime, usd_amount: float, ex2prices: dict[str, float], fundrate_diff: float):
