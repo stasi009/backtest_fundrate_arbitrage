@@ -3,7 +3,7 @@ import httpx
 import pandas as pd
 from datetime import timezone, datetime, timedelta, time
 import typer
-from prepare.common import UTC_TM_FORMAT, check_http_error, safe_output_path
+from prepare.common import UTC_TM_FORMAT, check_http_error, safe_output_path, raw_data_file
 
 SLEEP_SECONDS = 0.3
 
@@ -118,7 +118,7 @@ async def __main__(market: str, start_time: datetime, end_time: datetime):
     df = df_fundrates.join(df_candles, how="outer")
     df.sort_index(inplace=True)
 
-    outfname = safe_output_path(f"data/raw/dydx_{market}.csv")
+    outfname = safe_output_path(raw_data_file('dydx',market))
     df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
 

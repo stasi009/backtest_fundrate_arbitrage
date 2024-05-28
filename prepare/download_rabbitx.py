@@ -3,7 +3,7 @@ import httpx
 import pandas as pd
 from datetime import timezone, datetime, time
 import typer
-from prepare.common import safe_output_path, check_http_error
+from prepare.common import safe_output_path, check_http_error, raw_data_file
 from pprint import pprint
 
 MICRO_PER_SECOND = 1000000
@@ -131,7 +131,7 @@ async def __main__(market: str, start_time: datetime, end_time: datetime):
     df = df_fundrates.join(df_candles, how="outer")
     df.sort_index(inplace=True)
 
-    outfname = safe_output_path(f"data/raw/rabbitx_{market}.csv")
+    outfname = safe_output_path(raw_data_file("rabbitx", market))
     df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
 
