@@ -24,14 +24,5 @@ def safe_output_path(outfname: str | Path):
     return outfname
 
 
-def load_all_coins():
-    all_coins = []
-    with open("coin_list.txt", "rt") as fin:
-        for line in fin:
-            if line.startswith("#"):
-                continue
-            line = line.strip()
-            if len(line) == 0:
-                continue
-            all_coins.append(line)
-    return all_coins
+def raw_data_file(exchange: str, market: str):
+    return f"data/raw/{exchange}_{market}.csv"
