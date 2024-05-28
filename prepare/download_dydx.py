@@ -7,6 +7,7 @@ from prepare.common import UTC_TM_FORMAT, check_http_error, safe_output_path
 
 SLEEP_SECONDS = 0.3
 
+
 def truncate_to_hour(txt: str) -> datetime:
     """
     尽管返回的都是小时级别的funding rate，但是返回结果的timestamp，由于误差原因，导致microsecond等位置存在non-zero
@@ -122,11 +123,8 @@ async def __main__(market: str, start_time: datetime, end_time: datetime):
 
 
 def main(market: str, start_day: datetime, end_day: datetime):
-    end_time = datetime.combine(end_day.date(), time(23, 59, 59))  # 终止那天的最后一个小时
-    start_time = datetime.combine(start_day.date(), time())  # 开始那天的第一个小时
-
-    start_time = start_time.replace(tzinfo=timezone.utc)
-    end_time = end_time.replace(tzinfo=timezone.utc)
+    end_time = datetime.combine(end_day.date(), time(23, 59, 59)).replace(tzinfo=timezone.utc)
+    start_time = datetime.combine(start_day.date(), time()).replace(tzinfo=timezone.utc)
 
     asyncio.run(__main__(market=market, start_time=start_time, end_time=end_time))
 
