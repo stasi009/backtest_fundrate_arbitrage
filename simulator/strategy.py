@@ -161,7 +161,7 @@ class FundingArbStrategy:
                     ex2markprices=feed.mark_prices[market],
                     ex2fundrates=feed.funding_rates[market],
                 )
-                if feed.timestamp.hour == 23:  # 每天记录一次指标
+                if feed.timestamp.hour == 0:  # 记录前一天的metrics
                     trade.record_metrics(feed.timestamp)
 
         # 退出循环时，feed指向最后一个feed
