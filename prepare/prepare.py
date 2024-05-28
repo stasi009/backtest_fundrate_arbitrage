@@ -5,17 +5,17 @@ from typing import Annotated
 import time
 
 
-class BatchDownloader:
+class PrepareJob:
     def __init__(self) -> None:
         self._failed_commands = []
 
     def __download(self, exchange: str, coin: str, start_dt: str, end_dt: str):
         market = coin + "-USD"
-        command = ["python", f"dl_fundrate_{exchange}.py", market, start_dt, end_dt]
+        command = ["python", '-m', f"prepare.download_{exchange}", market, start_dt, end_dt]
         cmd_line = " ".join(command)
 
         try_counter = 1
-        while try_counter <= 3:  # 有时会发生connetion issue，重试一次
+        while try_counter <= 5:  # 有时会发生connetion issue，重试一次
             print(f"\n------ [{try_counter}] {cmd_line}")
 
             proc = subprocess.run(command)
@@ -51,13 +51,8 @@ class BatchDownloader:
                 print(f"[{idx:02d}] {cmdline}")
 
 
-def main(
-    start_dt: datetime,
-    end_dt: datetime,
-    exchanges: Annotated[str, typer.Option("--exchanges", "-e")] = None,
-    coins: Annotated[str, typer.Option("--coins", "-c")] = None,
-):
-    downloader = BatchDownloader()
+def main(exchanges: str, coins: str, start_dt: datetime, end_dt: datetime):
+    downloader = PrepareJob()
     downloader.run(exchanges=exchanges, coins=coins, start_dt=start_dt, end_dt=end_dt)
 
 
