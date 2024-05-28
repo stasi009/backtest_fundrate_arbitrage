@@ -47,15 +47,17 @@ class DownloaderBase:
                 batch_results = self._parse(response.json())
                 if len(batch_results) == 0:
                     break
-                
+
                 print(
                     f"downloaded Rabbitx[{self.market}] {len(batch_results)} "
                     f"{self.data_type} {batch_results[0]['timestamp']} ~ {batch_results[-1]['timestamp']}"
                 )
-                
+
                 all_results.extend(batch_results)
                 await asyncio.sleep(SLEEP_SECONDS)
-                start_micro_sec = datetime_to_microsec(batch_results[-1]["timestamp"]) + MICRO_PER_SECOND*3600
+                start_micro_sec = (
+                    datetime_to_microsec(batch_results[-1]["timestamp"]) + MICRO_PER_SECOND * 3600
+                )
 
         df = pd.DataFrame(all_results)
         df.set_index("timestamp", inplace=True)
@@ -79,7 +81,7 @@ class FundRateDownloader(DownloaderBase):
             rate = float(r["funding_rate"])
             dt = microsec_to_datetime(r["timestamp"])
             # 防止有误差导致小时之外还有数字
-            effectiveAt = dt.replace(minute=0, second=0, microsecond=0)
+            effectiveAt = dt.replace(minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
             batch_results.append({"timestamp": effectiveAt, "fund_rate": rate})
 
         return batch_results
@@ -126,14 +128,14 @@ async def __main__(market: str, start_time: datetime, end_time: datetime):
 
     df = df_fundrates.join(df_candles, how="outer")
     df.sort_index(inplace=True)
-    
+
     outfname = safe_output_path(f"data/raw/rabbitx_{market}.csv")
     df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
 
 def main(market: str, start_day: datetime, end_day: datetime):
-    end_time = datetime.combine(end_day.date(), time(23, 59, 59))  # 终止那天的最后一秒
-    start_time = datetime.combine(start_day.date(), time())  # 开始那天的第一秒
+    end_time = datetime.combine(end_day.date(), time(23, 59, 59)).replace(tzinfo=timezone.utc)
+    start_time = datetime.combine(start_day.date(), time()).replace(tzinfo=timezone.utc)
     asyncio.run(__main__(market=market, start_time=start_time, end_time=end_time))
 
 
