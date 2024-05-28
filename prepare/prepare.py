@@ -54,7 +54,7 @@ class PrepareJob:
             for idx, cmdline in enumerate(self.__failed_commands, start=1):
                 print(f"[{idx:02d}] {cmdline}")
 
-        return self.__failed_commands == 0
+        return len(self.__failed_commands) == 0
 
     def postprocess(self):
         self.__datetime_index = pd.date_range(
