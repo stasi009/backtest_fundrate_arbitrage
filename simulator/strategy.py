@@ -72,6 +72,7 @@ class FundingArbStrategy:
             market=arbpair.market,
             long_ex=self._exchanges[arbpair.long_ex],
             short_ex=self._exchanges[arbpair.short_ex],
+            config=self._config
         )
 
         if arbpair.market not in self._active_arb_trades:
@@ -112,7 +113,7 @@ class FundingArbStrategy:
             funding_rates: out-key=market, inner dict: exchange->funding rate
         """
         for market in self._config.markets:
-            arbpair = self._best_arb_pair(market=market, ex_fundrates=funding_rates[market])
+            arbpair = self._best_arb_pair(market=market, funding_rates=funding_rates)
             if arbpair.fundrate_diff < self._config.fundrate_diff_open:  # fundingrate差异不够大
                 continue
 

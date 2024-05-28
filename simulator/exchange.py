@@ -46,7 +46,7 @@ class MarginCall(Exception):
 
 
 class Exchange:
-    def __init__(self, name: str, init_cash: float, markets: dict[str, float], commission=0.00005) -> None:
+    def __init__(self, name: str, init_cash: float, markets: dict[str, float], commission:float) -> None:
         self.name = name
 
         self.__init_cash = init_cash
