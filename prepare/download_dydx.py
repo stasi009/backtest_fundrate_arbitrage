@@ -3,9 +3,17 @@ import httpx
 import pandas as pd
 from datetime import timezone, datetime, timedelta, time
 import typer
-from prepare.common import UTC_TM_FORMAT, truncate_to_hour, check_http_error, safe_output_path
+from prepare.common import UTC_TM_FORMAT, check_http_error, safe_output_path
 
 SLEEP_SECONDS = 0.3
+
+def truncate_to_hour(txt: str) -> datetime:
+    """
+    尽管返回的都是小时级别的funding rate，但是返回结果的timestamp，由于误差原因，导致microsecond等位置存在non-zero
+    这会导致未来无法按照时间匹配，所以这里强制将minute/second/microsecond都设置为0，确保未来匹配成功
+    """
+    dt = datetime.strptime(txt, UTC_TM_FORMAT)
+    return dt.replace(minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
 
 
 class DownloaderBase:
@@ -52,8 +60,8 @@ class DownloaderBase:
 
 
 class FundRateDownloader(DownloaderBase):
-    """ https://dydxprotocol.github.io/v3-teacher/#get-historical-funding
-    """
+    """https://dydxprotocol.github.io/v3-teacher/#get-historical-funding"""
+
     def __init__(self, market: str) -> None:
         super().__init__(market, "FundRate")
 
