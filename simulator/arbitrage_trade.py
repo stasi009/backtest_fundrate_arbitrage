@@ -138,6 +138,7 @@ class FundingArbTrade:
         # 只有两个order都open成功而不抛出异常，下列代码才会执行，as expected
         self.open_fundrate_diff = fundrate_diff
         assert self.open_fundrate_diff > 0
+        self.latest_fundrate_diff = self.open_fundrate_diff
 
         if self.open_tm is None:  # 加仓时不更新开仓时间
             self.open_tm = tm
