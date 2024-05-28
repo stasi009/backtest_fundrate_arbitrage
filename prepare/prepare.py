@@ -51,6 +51,8 @@ class PrepareJob:
             for idx, cmdline in enumerate(self.__failed_commands, start=1):
                 print(f"[{idx:02d}] {cmdline}")
 
+        return self.__failed_commands == 0
+
     def postprocess(self):
         self.__datetime_index = pd.date_range(
             start=datetime.combine(self.__start_dt.date(), time()),
@@ -77,19 +79,14 @@ class PrepareJob:
             data = data.loc[:, ["fund_rate", "mark_price", "open_price", "close_price"]]
             data.sort_index(inplace=True)
             data.to_csv(f"data/input/{exchange}_{market}.csv", index_label="timestamp")
+            print(f"backtest input {market}@{exchange} saved")
 
 
 def main(exchanges: str, coins: str, start_dt: datetime, end_dt: datetime):
     downloader = PrepareJob(exchanges=exchanges, coins=coins, start_dt=start_dt, end_dt=end_dt)
-    downloader.download()
+    if downloader.download():
+        downloader.postprocess()
 
 
 if __name__ == "__main__":
-    # typer.run(main)
-    downloader = PrepareJob(
-        exchanges="dydx,rabbitx",
-        coins="btc,eth,sol",
-        start_dt=datetime(2024, 5, 28),
-        end_dt=datetime(2024, 5, 28),
-    )
-    downloader.postprocess()
+    typer.run(main)
