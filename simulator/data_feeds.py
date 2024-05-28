@@ -22,6 +22,9 @@ class FeedOnce:  # 某个时刻下的数据
             "fund_rate": self.funding_rates,
         }
 
+    def get(self, metric_name: str) -> dict[str, dict[str, float]]:
+        return self.__col2container[metric_name]
+
     def add(self, column: str, market: str, exchange: str, value: float):
         container = self.__col2container[column]
         # 外层key是market，内层dict是exchange -> value
