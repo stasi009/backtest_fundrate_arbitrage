@@ -112,7 +112,9 @@ class CandleDownloader(DownloaderBase):
             }
             for r in json["result"]
         ]
-        # rabbitx的API极其混乱，Candle数据又是逆序的了
+        # !!! rabbitx的API极其混乱，
+        # 第一：Candle数据又是逆序的了，为了与框架兼容，这里要重新sort
+        # 第二：这个API居然自作主张地替我fill missing了，如果我要求了未来数据，它自动将它们填充成last valid数据
         batch_results.sort(key=lambda t: t["timestamp"])
         return batch_results
 
