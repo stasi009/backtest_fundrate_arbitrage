@@ -3,7 +3,9 @@ from datetime import datetime, time, timezone
 import pandas as pd
 import typer
 from prepare.common import raw_data_file, safe_output_path
+from time import sleep
 
+SLEEP_SECONDS = 0.5
 
 class PrepareJob:
     def __init__(self, exchanges: str, coins: str, start_dt: datetime, end_dt: datetime) -> None:
@@ -30,7 +32,7 @@ class PrepareJob:
                 return
 
             try_counter += 1
-            time.sleep(1)
+            sleep(SLEEP_SECONDS)
 
         typer.echo(typer.style(f"!!!!!! [FAIL] {cmd_line}", fg=typer.colors.BRIGHT_RED, bold=True))
         self.__failed_commands.append(cmd_line)
@@ -45,6 +47,7 @@ class PrepareJob:
                     start_dt=self.__start_dt.strftime("%Y-%m-%d"),
                     end_dt=self.__end_dt.strftime("%Y-%m-%d"),
                 )
+                sleep(SLEEP_SECONDS)
 
         if len(self.__failed_commands) > 0:
             print(f"there are {len(self.__failed_commands)} failed commands")
