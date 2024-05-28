@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import timezone, datetime, time
 import typer
 from prepare.common import safe_output_path, check_http_error
+from pprint import pprint
 
 MICRO_PER_SECOND = 1000000
 SLEEP_SECONDS = 0.3
@@ -46,15 +47,15 @@ class DownloaderBase:
                 batch_results = self._parse(response.json())
                 if len(batch_results) == 0:
                     break
-                all_results.extend(batch_results)
-
+                
                 print(
                     f"downloaded Rabbitx[{self.market}] {len(batch_results)} "
                     f"{self.data_type} {batch_results[0]['timestamp']} ~ {batch_results[-1]['timestamp']}"
                 )
-
+                
+                all_results.extend(batch_results)
                 await asyncio.sleep(SLEEP_SECONDS)
-                start_micro_sec = datetime_to_microsec(batch_results[-1]["timestamp"]) + MICRO_PER_SECOND
+                start_micro_sec = datetime_to_microsec(batch_results[-1]["timestamp"]) + MICRO_PER_SECOND*3600
 
         df = pd.DataFrame(all_results)
         df.set_index("timestamp", inplace=True)
@@ -69,7 +70,7 @@ class FundRateDownloader(DownloaderBase):
         return "https://api.prod.rabbitx.io/markets/fundingrate"
 
     def _params(self, start_micro_sec: int, end_micro_sec: int) -> dict:
-        return {"market_id": self.market, "p_limit": 100, "start_time": start_micro_sec, "p_order": "ASC"}
+        return {"market_id": self.market, "p_limit": 1000, "start_time": start_micro_sec, "p_order": "ASC"}
 
     def _parse(self, json: dict):
         batch_results = []
@@ -84,20 +85,48 @@ class FundRateDownloader(DownloaderBase):
         return batch_results
 
 
+class CandleDownloader(DownloaderBase):
+    def __init__(self, market: str) -> None:
+        super().__init__(market, "Candle")
+
+    def _url(self) -> str:
+        return "https://api.prod.rabbitx.io/candles"
+
+    def _params(self, start_micro_sec: int, end_micro_sec: int) -> dict:
+        return {
+            "market_id": self.market,
+            # 时间格式太混乱，一会儿单位是second，一会儿单位是micro-second
+            "timestamp_from": int(start_micro_sec / MICRO_PER_SECOND),
+            "timestamp_to": int(end_micro_sec / MICRO_PER_SECOND),
+            "period": 60,  # 60 minutes
+        }
+
+    def _parse(self, json: dict):
+        batch_results = [
+            {
+                "timestamp": datetime.fromtimestamp(r["time"], tz=timezone.utc),
+                "open_price": float(r["open"]),
+                "close_price": float(r["close"]),
+            }
+            for r in json["result"]
+        ]
+        # rabbitx的API极其混乱，Candle数据又是逆序的了
+        batch_results.sort(key=lambda t: t["timestamp"])
+        return batch_results
+
+
 async def __main__(market: str, start_time: datetime, end_time: datetime):
     fundrate_downloader = FundRateDownloader(market)
     df_fundrates = await fundrate_downloader.download(start_time=start_time, end_time=end_time)
 
-    # await asyncio.sleep(SLEEP_SECONDS)
+    await asyncio.sleep(SLEEP_SECONDS)
 
-    # candle_downloader = CandleDownloader(market)
-    # df_candles = await candle_downloader.download(start_time=start_time, end_time=end_time)
+    candle_downloader = CandleDownloader(market)
+    df_candles = await candle_downloader.download(start_time=start_time, end_time=end_time)
 
-    # df = df_fundrates.join(df_candles, how="outer")
-    # df.sort_index(inplace=True)
-
-    df = df_fundrates
-
+    df = df_fundrates.join(df_candles, how="outer")
+    df.sort_index(inplace=True)
+    
     outfname = safe_output_path(f"data/raw/rabbitx_{market}.csv")
     df.to_csv(outfname, index_label="timestamp", date_format="%Y-%m-%d %H:%M:%S")
 
