@@ -102,7 +102,11 @@ class FundingArbStrategy:
             arbpair.fundrate_diff
             >= old_trade.open_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
         ):
-            logging.info(f"increase position on {new_trade.name}")
+            logging.info(
+                f"increase position on {new_trade.name}, "
+                f"last AFRdiff={hfr2a(old_trade.open_fundrate_diff ):.2%}, "
+                f"current AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}"
+            )
             return None, old_trade  # 加仓
 
         # 本次发现的best pair与上次发现的best pair不同，并且fundrate_diff大了很多，换仓
@@ -110,7 +114,10 @@ class FundingArbStrategy:
             arbpair.fundrate_diff
             >= old_trade.latest_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
         ):
-            logging.info(f"change trade from {old_trade.name} to {new_trade.name}")
+            logging.info(
+                f"change trade from {old_trade.name}(AFRdiff={hfr2a(old_trade.latest_fundrate_diff):.2%}) to"
+                f" {new_trade.name}(AFRdiff={hfr2a(arbpair.fundrate_diff):.2%})"
+            )
             # 关闭old active trade，开仓new_trade
             return old_trade, new_trade
 
