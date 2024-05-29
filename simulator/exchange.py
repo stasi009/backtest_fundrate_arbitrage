@@ -104,7 +104,7 @@ class Exchange:
             account.hold_price = 0
 
         logging.info(
-            f"[{self.name}] --CLOSE-- {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
+            f"[{self.name}] --CLOSE-- {'BUY' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
         )
 
     def _open(self, market: str, is_long: int, price: float, shares: float):
@@ -120,7 +120,7 @@ class Exchange:
         total_cost = old_shares * account.hold_price + shares * price
         account.hold_price = total_cost / abs(account.long_short_shares)
         logging.info(
-            f"[{self.name}] ++OPEN++ {'BUY' if is_long else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
+            f"[{self.name}] ++OPEN++ {'BUY' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
         )
 
     def trade(self, market: str, is_long: int, price: float, shares: float) -> None:
