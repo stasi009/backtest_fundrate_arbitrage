@@ -46,7 +46,7 @@ class MarginCall(Exception):
 
 
 class Exchange:
-    def __init__(self, name: str, init_cash: float, markets: dict[str, float], commission:float) -> None:
+    def __init__(self, name: str, init_cash: float, markets: dict[str, float], commission: float) -> None:
         self.name = name
 
         self.__init_cash = init_cash
@@ -104,7 +104,7 @@ class Exchange:
             account.hold_price = 0
 
         logging.info(
-            f"[{self.name}] --CLOSE-- {'BUY' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
+            f"[{self.name:>8}] --CLOSE-- {'BUY ' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares:.3f} shares"
         )
 
     def _open(self, market: str, is_long: int, price: float, shares: float):
@@ -120,7 +120,7 @@ class Exchange:
         total_cost = old_shares * account.hold_price + shares * price
         account.hold_price = total_cost / abs(account.long_short_shares)
         logging.info(
-            f"[{self.name}] ++OPEN++ {'BUY' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares} shares"
+            f"[{self.name:>8}] ++OPEN++ {'BUY ' if is_long>0 else 'SELL'} [{market}] at price={price:.2f} for {shares:.3f} shares"
         )
 
     def trade(self, market: str, is_long: int, price: float, shares: float) -> None:
@@ -199,10 +199,10 @@ class Exchange:
             trade_pnl=total_trade_pnl,
             fund_pnl=total_fund_pnl,
         )
-        
-        if timestamp is not None:#算是隐藏控制选项，timestamp=None用于debug
+
+        if timestamp is not None:  # 算是隐藏控制选项，timestamp=None用于debug
             self._metrics.append(metric)
-            
+
         return metric
 
     @property
