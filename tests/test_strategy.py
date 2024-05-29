@@ -36,11 +36,11 @@ def main():
     strategy.run()
 
     for exchange in strategy.iter_exchanges():
-        print(f"\n\n************************* Post Backtest: Exchange[{exchange.name}]")
+        logging.info(f"\n\n************************* Post Backtest: Exchange[{exchange.name}]")
         exchange.inspect()
-        print(exchange.metric_history)
+        logging.info(exchange.metric_history)
 
-    print(f"\n\n************************* ALL TRADES")
+    logging.info(f"\n\n************************* ALL TRADES")
     total_trade_pnl = 0
     total_fund_pnl = 0
     pt = PrettyTable(["index", "open time", "close time", "trade PnL", "fund PnL"], float_format=".3")
@@ -48,13 +48,13 @@ def main():
         total_trade_pnl += trade.trade_pnl
         total_fund_pnl += trade.fund_pnl
         pt.add_row([idx, trade.open_tm, trade.close_tm, trade.trade_pnl, trade.fund_pnl])
-    print(pt)
+    logging.info(pt)
 
     pt = PrettyTable(["Item", "Value"], float_format=".3")
     pt.add_row(["Total Trade Pnl", total_trade_pnl])
     pt.add_row(["Total Funding Pnl", total_fund_pnl])
     pt.add_row(["Total PnL", total_trade_pnl + total_fund_pnl])
-    print(pt)
+    logging.info(pt)
 
 
 if __name__ == "__main__":

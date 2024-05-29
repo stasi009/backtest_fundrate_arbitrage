@@ -218,7 +218,7 @@ class Exchange:
         pt = PrettyTable(metric_keys, title=f"Summary Exchange[{self.name}]")
         metric = self.record_metrics(None)
         pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
-        print(pt)
+        logging.info(pt)
         # ---------- each account
         pt = PrettyTable(
             ["Market", "Shares", "HoldPrice", "UsedMargin", "TradePnL", "FundPnL"],
@@ -235,4 +235,4 @@ class Exchange:
                     f"{account.fund_pnl:.3f}",
                 )
             )
-        print(pt)
+        logging.info(pt)
