@@ -68,6 +68,9 @@ class FundingArbStrategy:
                     short_ex = ex2_name if fundrate1 < fundrate2 else ex1_name
                     max_frate_diff = frate_diff
 
+        if max_frate_diff < self._config.fundrate_diff_open:  # fundingrate差异不够大
+            return None
+
         logging.debug(
             f"[{market}] best pair: "
             f"long {long_ex} with AFR={hfr2a(ex_fundrates[long_ex]):.2%}, "
@@ -130,7 +133,7 @@ class FundingArbStrategy:
         """
         for market in self._config.markets:
             arbpair = self._best_arb_pair(market=market, funding_rates=funding_rates)
-            if arbpair.fundrate_diff < self._config.fundrate_diff_open:  # fundingrate差异不够大
+            if arbpair is None:  # fundingrate差异不够大，没有找到套利对
                 continue
 
             trade2close, trade2open = self.__open(arbpair)
@@ -171,11 +174,11 @@ class FundingArbStrategy:
             logging.info(f"\n********************** [{idx}] {feed.timestamp}")
             self.close(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
             self.open(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
-            
+
             # begin debug
-            for exchange in self._exchanges.values():
-                logging.debug(f"\n\n---------- before settle Exchange[{exchange.name}]")
-                exchange.inspect()
+            # for exchange in self._exchanges.values():
+            #     logging.debug(f"\n\n---------- before settle Exchange[{exchange.name}]")
+            #     exchange.inspect()
             # end debug
 
             for market, trade in self._active_arb_trades.items():
@@ -188,9 +191,9 @@ class FundingArbStrategy:
                 trade.record_metrics(feed.timestamp)
 
             # begin debug
-            for exchange in self._exchanges.values():
-                logging.debug(f"\n\n---------- after settle Exchange[{exchange.name}]")
-                exchange.inspect()
+            # for exchange in self._exchanges.values():
+            #     logging.debug(f"\n\n---------- after settle Exchange[{exchange.name}]")
+            #     exchange.inspect()
             # end debug
 
         # 退出循环时，feed指向最后一个feed

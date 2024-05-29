@@ -67,7 +67,7 @@ class Order:
         )
 
         logging.info(
-            f"[{self._exchange.name:>8}] {'Long' if self._is_long > 0 else 'SELL'} {self._market}, "
+            f"Settle [{self._exchange.name:>8}] {'Long' if self._is_long > 0 else 'SELL'} {self._market}, "
             f"TradePnl={trade_pnl:.4f}, MarginDiff={margin_diff:.4f}, FundPnl={fund_pnl:.4f}"
         )
 
