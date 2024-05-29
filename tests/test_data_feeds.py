@@ -9,11 +9,12 @@ class Tester:
         self.__exchanges = exchanges
         self.__markets = markets
         self.__data_feeds = DataFeeds(data_dir="data/input", exchanges=exchanges, markets=markets)
+        self.__metric_names = ["open_price", "close_price", "mark_price", "fund_rate"]
 
-    def display(self, feed: FeedOnce, metric_name: str):
+    def display1(self, feed: FeedOnce, metric_name: str):
         all_values = feed.get(metric_name)
-        
-        title = "Annual Funding Rate" if metric_name == 'fund_rate' else metric_name
+
+        title = "Annual Funding Rate" if metric_name == "fund_rate" else metric_name
         pt = PrettyTable(["market"] + self.__exchanges, title=title)
         for market in self.__markets:
             ex_values = all_values[market]  # 同一个market不同exchange的数值
@@ -27,12 +28,28 @@ class Tester:
 
         print(pt)
 
+    def display_by_market(self, market: str, feed: FeedOnce):
+        pt = PrettyTable(["exchange"] + self.__metric_names, title=market)
+
+        for exchange in self.__exchanges:
+            row = [exchange]
+            for metric_name in self.__metric_names:
+                ex_values = feed.get(metric_name)[market]
+                value = ex_values[exchange]
+                if metric_name == "fund_rate":
+                    val_txt = f"{hfr2a(value):.2%}"
+                else:
+                    val_txt = f"{value:.2f}"
+                row.append(val_txt)
+            pt.add_row(row)
+        print(pt)
+
     def run(self):
         for idx, feed in enumerate(self.__data_feeds, start=1):
             print(f"\n******************* [{idx:02d}] {feed.timestamp.strftime('%Y-%m-%d %H:%M:%SZ')}")
 
-            for metric_name in ["open_price", "close_price", "mark_price", "fund_rate"]:
-                self.display(feed, metric_name)
+            for market in self.__markets:
+                self.display_by_market(market=market, feed=feed)
 
 
 def test():
