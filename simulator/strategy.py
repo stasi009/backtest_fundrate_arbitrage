@@ -5,6 +5,7 @@ from simulator.data_feeds import DataFeeds, FeedOnce
 from simulator.exchange import Exchange
 from simulator.arbitrage_trade import FundingArbTrade
 from simulator.config import Config
+import logging
 
 
 @dataclass
@@ -36,7 +37,7 @@ class FundingArbStrategy:
         # market --> trade，同一时刻一个market只存在一个trade，1 long vs. 1 short，不存在multi long vs. multi short可能性
         self._active_arb_trades: dict[str, FundingArbTrade] = {}
         self.closed_trades: list[FundingArbTrade] = []
-        
+
     def iter_exchanges(self):
         return self._exchanges.values()
 
@@ -158,8 +159,8 @@ class FundingArbStrategy:
         self._active_arb_trades = keep_open_trades
 
     def run(self):
-        for idx,feed in enumerate(self._data_feeds,start=1):
-            print(f"\n********************** [{idx}] {feed.timestamp}")
+        for idx, feed in enumerate(self._data_feeds, start=1):
+            logging.info(f"\n********************** [{idx}] {feed.timestamp}")
             self.close(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
             self.open(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
 

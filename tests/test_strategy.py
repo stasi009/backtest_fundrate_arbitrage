@@ -1,6 +1,7 @@
 from simulator.config import Config
 from simulator.strategy import FundingArbStrategy
 from prettytable import PrettyTable
+import logging
 
 HOURS_PER_YEAR = 24 * 365
 
@@ -23,6 +24,13 @@ def get_config():
         exchanges=["dydx", "rabbitx"],
         markets=[c.upper() + "-USD" for c in coins],
     )
+
+
+def setup_logging():
+    logging.basicConfig(level=logging.INFO, format="%(message)s", filename="backtest.log", filemode="wt")
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    logging.getLogger("").addHandler(console)
 
 
 def main():
@@ -52,4 +60,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()
