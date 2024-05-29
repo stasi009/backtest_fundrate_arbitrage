@@ -27,8 +27,8 @@ def main():
     strategy = FundingArbStrategy(get_config())
     strategy.run()
     
-    for exname, exchange in strategy.iter_exchanges():
-        print(f'\n-------- {exname}')
+    for exchange in strategy.iter_exchanges():
+        print(f"\n\n************************* Post Backtest: Exchange[{exchange.name}]")
         exchange.inspect()
     
 if __name__ == "__main__":

@@ -212,11 +212,10 @@ class Exchange:
         df = df.loc[:, ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]]  # reorder columns
         return df
 
-    def inspect(self, header: str = ""):
-        print(f"\n\n************************* {header}")
+    def inspect(self):
         # ---------- summary
         metric_keys = ["total_value", "cash", "used_margin", "trade_pnl", "fund_pnl"]
-        pt = PrettyTable(metric_keys, title=f"Exchange[{self.name}]")
+        pt = PrettyTable(metric_keys, title=f"Summary Exchange[{self.name}]")
         metric = self.record_metrics(None)
         pt.add_row([f"{metric[k]:.3f}" for k in metric_keys])
         print(pt)

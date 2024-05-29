@@ -38,7 +38,7 @@ class FundingArbStrategy:
         self._closed_trades: list[FundingArbTrade] = []
         
     def iter_exchanges(self):
-        return self._exchanges.items()
+        return self._exchanges.values()
 
     def _best_arb_pair(self, market: str, funding_rates: dict[str, dict[str, float]]) -> ArbPair:
         """
