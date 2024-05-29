@@ -171,7 +171,7 @@ class FundingArbTrade:
         logging.info(
             f"Trade[{self.name}] ASFR={hfr2a(short_fr):.2%}%"
             f", ALFR={hfr2a(long_fr):.2%}%"
-            f", AFR_Diff={hfr2a(self.latest_fundrate_diff):.2%}%"
+            f", AFRdiff={hfr2a(self.latest_fundrate_diff):.2%}%"
         )
         return self.latest_fundrate_diff
 

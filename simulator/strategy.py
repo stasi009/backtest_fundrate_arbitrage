@@ -4,7 +4,7 @@ from datetime import datetime
 from simulator.data_feeds import DataFeeds, FeedOnce
 from simulator.exchange import Exchange
 from simulator.arbitrage_trade import FundingArbTrade
-from simulator.utils import Config
+from simulator.utils import Config, hfr2a
 import logging
 
 
@@ -81,7 +81,7 @@ class FundingArbStrategy:
 
         if arbpair.market not in self._active_arb_trades:
             self._active_arb_trades[arbpair.market] = new_trade
-            print(f"open new trade: {new_trade.name}")
+            print(f"open new trade: {new_trade.name}, when AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}")
             return None, new_trade
 
         old_trade = self._active_arb_trades[arbpair.market]

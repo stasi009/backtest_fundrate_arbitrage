@@ -24,10 +24,10 @@ def get_config():
     )
 
 
-def setup_logging():
-    logging.basicConfig(level=logging.INFO, format="%(message)s", filename="backtest.log", filemode="wt")
+def setup_logging(level):
+    logging.basicConfig(level=level, format="%(message)s", filename="backtest.log", filemode="wt")
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    console.setLevel(level)
     logging.getLogger("").addHandler(console)
 
 
@@ -58,5 +58,5 @@ def main():
 
 
 if __name__ == "__main__":
-    setup_logging()
+    setup_logging(logging.DEBUG)
     main()
