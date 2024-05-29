@@ -1,4 +1,4 @@
-from simulator.config import Config
+from simulator.utils import Config
 from simulator.strategy import FundingArbStrategy
 from prettytable import PrettyTable
 import logging

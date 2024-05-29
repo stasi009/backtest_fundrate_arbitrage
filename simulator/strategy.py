@@ -4,7 +4,7 @@ from datetime import datetime
 from simulator.data_feeds import DataFeeds, FeedOnce
 from simulator.exchange import Exchange
 from simulator.arbitrage_trade import FundingArbTrade
-from simulator.config import Config
+from simulator.utils import Config
 import logging
 
 

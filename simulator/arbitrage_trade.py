@@ -1,5 +1,5 @@
 from simulator.exchange import Exchange, MarginCall, PerpsAccount
-from simulator.config import Config
+from simulator.utils import Config
 from dataclasses import dataclass
 from datetime import datetime
 from copy import copy
