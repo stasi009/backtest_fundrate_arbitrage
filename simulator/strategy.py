@@ -68,6 +68,12 @@ class FundingArbStrategy:
                     short_ex = ex2_name if fundrate1 < fundrate2 else ex1_name
                     max_frate_diff = frate_diff
 
+        logging.debug(
+            f"[{market}] best pair: "
+            f"long {long_ex} with AFR={hfr2a(ex_fundrates[long_ex]):.2%}, "
+            f"short {short_ex} with AFR={hfr2a(ex_fundrates[short_ex]):.2%}, "
+            f"AFRdiff={hfr2a(max_frate_diff):.2%}"
+        )
         return ArbPair(market=market, long_ex=long_ex, short_ex=short_ex, fundrate_diff=max_frate_diff)
 
     def __open(self, arbpair: ArbPair) -> Tuple[FundingArbTrade, FundingArbTrade]:
@@ -81,7 +87,9 @@ class FundingArbStrategy:
 
         if arbpair.market not in self._active_arb_trades:
             self._active_arb_trades[arbpair.market] = new_trade
-            logging.info(f"open new trade: {new_trade.name}, when AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}")
+            logging.info(
+                f"open new trade: {new_trade.name}, when AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}"
+            )
             return None, new_trade
 
         old_trade = self._active_arb_trades[arbpair.market]
@@ -172,10 +180,12 @@ class FundingArbStrategy:
                 )
             if feed.timestamp.hour == 23:  # 每天结束时记录一次metrics
                 trade.record_metrics(feed.timestamp)
-                
+
+            # begin debug
             for exchange in self._exchanges.values():
                 logging.debug(f"\n\n---------- Exchange[{exchange.name}]")
                 exchange.inspect()
+            # end debug
 
         # 退出循环时，feed指向最后一个feed
         for market, trade in self._active_arb_trades.items():

@@ -1,4 +1,5 @@
 from simulator.data_feeds import DataFeeds, FeedOnce
+from simulator.utils import hfr2a
 from pprint import pprint
 from prettytable import PrettyTable
 
@@ -11,15 +12,16 @@ class Tester:
 
     def display(self, feed: FeedOnce, metric_name: str):
         all_values = feed.get(metric_name)
-
-        pt = PrettyTable(["market"] + self.__exchanges, title=metric_name)
+        
+        title = "Annual Funding Rate" if metric_name == 'fund_rate' else metric_name
+        pt = PrettyTable(["market"] + self.__exchanges, title=title)
         for market in self.__markets:
             ex_values = all_values[market]  # 同一个market不同exchange的数值
 
             if metric_name != "fund_rate":
                 values = [f"{ex_values[e]:.2f}" for e in self.__exchanges]
             else:
-                values = [f"{ex_values[e]:.2E}" for e in self.__exchanges]
+                values = [f"{hfr2a(ex_values[e]):.2%}" for e in self.__exchanges]
 
             pt.add_row([market] + values)
 

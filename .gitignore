@@ -12,3 +12,4 @@ model.png
 data/*
 backtest.log
 *.bak
+**/temp.*
