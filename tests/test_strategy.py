@@ -23,13 +23,16 @@ def get_config():
         markets=[c.upper() + "-USD" for c in coins],
     )
 
+
 def main():
     strategy = FundingArbStrategy(get_config())
     strategy.run()
-    
+
     for exchange in strategy.iter_exchanges():
         print(f"\n\n************************* Post Backtest: Exchange[{exchange.name}]")
         exchange.inspect()
-    
+        print(exchange.metric_history)
+
+
 if __name__ == "__main__":
     main()
