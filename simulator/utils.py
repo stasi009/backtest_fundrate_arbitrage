@@ -17,3 +17,11 @@ class Config:
     data_dir: Path
     exchanges: list[str]
     markets: list[str]
+
+HOURS_PER_YEAR = 24 * 365
+
+def hourly_fundrate_to_annual(hourly_fundrate):
+    return hourly_fundrate * HOURS_PER_YEAR
+
+def annual_fundrate_to_hourly(annual_fundrate):
+    return annual_fundrate / HOURS_PER_YEAR
