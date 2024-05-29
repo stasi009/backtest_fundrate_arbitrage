@@ -86,6 +86,8 @@ class FundRateDownloader(DownloaderBase):
 
 
 class CandleDownloader(DownloaderBase):
+    """ https://dydxprotocol.github.io/v3-teacher/#get-candles-for-market
+    """
     def __init__(self, market: str) -> None:
         super().__init__(market, "Candle")
 
