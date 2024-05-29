@@ -35,7 +35,7 @@ class FundingArbStrategy:
 
         # market --> trade，同一时刻一个market只存在一个trade，1 long vs. 1 short，不存在multi long vs. multi short可能性
         self._active_arb_trades: dict[str, FundingArbTrade] = {}
-        self._closed_trades: list[FundingArbTrade] = {}
+        self._closed_trades: list[FundingArbTrade] = []
 
     def _best_arb_pair(self, market: str, funding_rates: dict[str, dict[str, float]]) -> ArbPair:
         """
@@ -72,7 +72,7 @@ class FundingArbStrategy:
             market=arbpair.market,
             long_ex=self._exchanges[arbpair.long_ex],
             short_ex=self._exchanges[arbpair.short_ex],
-            config=self._config
+            config=self._config,
         )
 
         if arbpair.market not in self._active_arb_trades:
@@ -101,6 +101,10 @@ class FundingArbStrategy:
 
         return None, None
 
+    def __close(self, trade: FundingArbTrade, tm: datetime, ex2prices: dict[str, float]):
+        trade.close(tm, ex2prices)
+        self._closed_trades.append(trade)
+
     def open(
         self,
         tm: datetime,
@@ -119,7 +123,7 @@ class FundingArbStrategy:
 
             trade2close, trade2open = self.__open(arbpair)
             if trade2close is not None:
-                trade2close.close(tm, prices[market])
+                self.__close(trade2close, tm, prices[market])
 
             if trade2open is not None:
                 trade2open.safe_open(
@@ -145,8 +149,7 @@ class FundingArbStrategy:
             trade.diff_fundrates(funding_rates[market])
 
             if trade.latest_fundrate_diff < self._config.fundrate_diff_close:  # fundrate差异收窄
-                trade.close(tm=tm, ex2prices=prices[market])
-                self._closed_trades.append(trade)
+                self.__close(trade, tm, prices[market])
             else:
                 keep_open_trades[market] = trade
         self._active_arb_trades = keep_open_trades
@@ -167,6 +170,5 @@ class FundingArbStrategy:
 
         # 退出循环时，feed指向最后一个feed
         for market, trade in self._active_arb_trades.items():
-            trade.close(tm=feed.timestamp, ex2prices=feed.close_prices[market])
-            self._closed_trades.append(trade)
+            self.__close(trade, feed.timestamp, feed.close_prices[market])
             trade.record_metrics(feed.timestamp)
