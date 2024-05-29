@@ -81,7 +81,7 @@ class FundingArbStrategy:
 
         if arbpair.market not in self._active_arb_trades:
             self._active_arb_trades[arbpair.market] = new_trade
-            print(f"open new trade: {new_trade.name}, when AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}")
+            logging.info(f"open new trade: {new_trade.name}, when AFRdiff={hfr2a(arbpair.fundrate_diff):.2%}")
             return None, new_trade
 
         old_trade = self._active_arb_trades[arbpair.market]
@@ -91,7 +91,7 @@ class FundingArbStrategy:
             arbpair.fundrate_diff
             >= old_trade.open_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
         ):
-            print(f"increase position on {new_trade.name}")
+            logging.info(f"increase position on {new_trade.name}")
             return None, old_trade  # 加仓
 
         # 本次发现的best pair与上次发现的best pair不同，并且fundrate_diff大了很多，换仓
@@ -99,7 +99,7 @@ class FundingArbStrategy:
             arbpair.fundrate_diff
             >= old_trade.latest_fundrate_diff * (1 + self._config.fundrate_diff_change_pct)
         ):
-            print(f"change trade from {old_trade.name} to {new_trade.name}")
+            logging.info(f"change trade from {old_trade.name} to {new_trade.name}")
             # 关闭old active trade，开仓new_trade
             return old_trade, new_trade
 
@@ -172,6 +172,10 @@ class FundingArbStrategy:
                 )
             if feed.timestamp.hour == 23:  # 每天结束时记录一次metrics
                 trade.record_metrics(feed.timestamp)
+                
+            for exchange in self._exchanges.values():
+                logging.debug(f"\n\n---------- Exchange[{exchange.name}]")
+                exchange.inspect()
 
         # 退出循环时，feed指向最后一个feed
         for market, trade in self._active_arb_trades.items():

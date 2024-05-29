@@ -169,9 +169,9 @@ class FundingArbTrade:
         long_fr = current_fundrates["long"]
         self.latest_fundrate_diff = short_fr - long_fr
         logging.info(
-            f"Trade[{self.name}] ASFR={hfr2a(short_fr):.2%}%"
-            f", ALFR={hfr2a(long_fr):.2%}%"
-            f", AFRdiff={hfr2a(self.latest_fundrate_diff):.2%}%"
+            f"Trade[{self.name}] ASFR={hfr2a(short_fr):.2%}"
+            f", ALFR={hfr2a(long_fr):.2%}"
+            f", AFRdiff={hfr2a(self.latest_fundrate_diff):.2%}"
         )
         return self.latest_fundrate_diff
 
