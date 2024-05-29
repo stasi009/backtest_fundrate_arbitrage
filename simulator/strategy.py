@@ -35,7 +35,7 @@ class FundingArbStrategy:
 
         # market --> trade，同一时刻一个market只存在一个trade，1 long vs. 1 short，不存在multi long vs. multi short可能性
         self._active_arb_trades: dict[str, FundingArbTrade] = {}
-        self._closed_trades: list[FundingArbTrade] = []
+        self.closed_trades: list[FundingArbTrade] = []
         
     def iter_exchanges(self):
         return self._exchanges.values()
@@ -106,7 +106,7 @@ class FundingArbStrategy:
 
     def __close(self, trade: FundingArbTrade, tm: datetime, ex2prices: dict[str, float]):
         trade.close(tm, ex2prices)
-        self._closed_trades.append(trade)
+        self.closed_trades.append(trade)
 
     def open(
         self,
