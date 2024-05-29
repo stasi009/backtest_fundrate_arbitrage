@@ -61,8 +61,15 @@ class Order:
         self._exchange.clear(market=self._market, price=self.slip_price(price))
 
     def settle(self, contract_price: float, mark_price: float, funding_rate: float):
-        self._exchange.settle_trading(market=self._market, price=contract_price)
-        self._exchange.settle_funding(market=self._market, mark_price=mark_price, funding_rate=funding_rate)
+        trade_pnl, margin_diff = self._exchange.settle_trading(market=self._market, price=contract_price)
+        fund_pnl = self._exchange.settle_funding(
+            market=self._market, mark_price=mark_price, funding_rate=funding_rate
+        )
+
+        logging.info(
+            f"[{self._exchange.name:>8}] {'Long' if self._is_long > 0 else 'SELL'} {self._market}, "
+            f"TradePnl={trade_pnl:.4f}, MarginDiff={margin_diff:.4f}, FundPnl={fund_pnl:.4f}"
+        )
 
     def record_metrics(self, timestamp: datetime):
         self._exchange.record_metrics(timestamp)

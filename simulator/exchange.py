@@ -78,7 +78,7 @@ class Exchange:
     def _update_cash(self, delta_cash: float):
         temp = self.__cash + delta_cash
         if temp <= 0:
-            logging.critical(f"Not Enough Margin: original cash={self.__cash},delta_cash={delta_cash}")
+            logging.critical(f"🚨😱💣Not Enough Margin: original cash={self.__cash},delta_cash={delta_cash}")
             raise MarginCall()
         self.__cash = temp
 
@@ -168,6 +168,8 @@ class Exchange:
         new_margin = abs(account.long_short_shares) * price * account.margin_rate
         margin_diff = new_margin - account.used_margin
         account.update(cash_item=CashItem.MARGIN, delta_cash=-margin_diff)
+        
+        return pnl, margin_diff
 
     def settle_funding(self, market: str, mark_price: float, funding_rate: float):
         account = self._perps_accounts[market]
@@ -179,6 +181,7 @@ class Exchange:
         # long_short_shares<0==>short position, funding_rate>0==>long pay short, pnl>0
         pnl = -funding_rate * account.long_short_shares * mark_price
         account.update(cash_item=CashItem.FUND_PNL, delta_cash=pnl)
+        return pnl
 
     def record_metrics(self, timestamp: datetime) -> dict:
         total_used_margin = 0
