@@ -28,11 +28,9 @@ class Tester:
 
         print(pt)
 
-    def display_by_market(self, market: str, feed: FeedOnce):
-        pt = PrettyTable(["exchange"] + self.__metric_names, title=market)
-
-        for exchange in self.__exchanges:
-            row = [exchange]
+    def __display_by_market(self, pt: PrettyTable, market: str, feed: FeedOnce):
+        for eidx, exchange in enumerate(self.__exchanges):
+            row = [market if eidx == 0 else "", exchange]
             for metric_name in self.__metric_names:
                 ex_values = feed.get(metric_name)[market]
                 value = ex_values[exchange]
@@ -42,14 +40,19 @@ class Tester:
                     val_txt = f"{value:.2f}"
                 row.append(val_txt)
             pt.add_row(row)
-        print(pt)
 
     def run(self):
-        for idx, feed in enumerate(self.__data_feeds, start=1):
-            print(f"\n******************* [{idx:02d}] {feed.timestamp.strftime('%Y-%m-%d %H:%M:%SZ')}")
+        for tidx, feed in enumerate(self.__data_feeds, start=1):
+            print(f"\n******************* [{tidx:02d}] {feed.timestamp.strftime('%Y-%m-%d %H:%M:%SZ')}")
 
-            for market in self.__markets:
-                self.display_by_market(market=market, feed=feed)
+            pt = PrettyTable(["market", "exchange"] + self.__metric_names)
+            for midx, market in enumerate(self.__markets, start=1):
+                self.__display_by_market(pt=pt, market=market, feed=feed)
+
+                if midx < len(self.__markets):
+                    pt.add_row(["---------"] * (2 + len(self.__metric_names)))
+
+            print(pt)
 
 
 def test():

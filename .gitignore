@@ -10,6 +10,6 @@ model.png
 *_profile_report.html
 .ipynb_checkpoints
 data/*
-backtest.log
+*.log
 *.bak
 **/temp.*
