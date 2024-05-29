@@ -171,6 +171,12 @@ class FundingArbStrategy:
             logging.info(f"\n********************** [{idx}] {feed.timestamp}")
             self.close(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
             self.open(tm=feed.timestamp, prices=feed.open_prices, funding_rates=feed.funding_rates)
+            
+            # begin debug
+            for exchange in self._exchanges.values():
+                logging.debug(f"\n\n---------- before settle Exchange[{exchange.name}]")
+                exchange.inspect()
+            # end debug
 
             for market, trade in self._active_arb_trades.items():
                 trade.settle(
@@ -183,7 +189,7 @@ class FundingArbStrategy:
 
             # begin debug
             for exchange in self._exchanges.values():
-                logging.debug(f"\n\n---------- Exchange[{exchange.name}]")
+                logging.debug(f"\n\n---------- after settle Exchange[{exchange.name}]")
                 exchange.inspect()
             # end debug
 
