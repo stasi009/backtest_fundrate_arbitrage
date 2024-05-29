@@ -11,3 +11,4 @@ model.png
 .ipynb_checkpoints
 data/*
 backtest.log
+*.bak

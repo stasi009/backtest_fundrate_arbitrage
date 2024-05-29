@@ -20,8 +20,8 @@ class Config:
 
 HOURS_PER_YEAR = 24 * 365
 
-def hourly_fundrate_to_annual(hourly_fundrate):
+def hfr2a(hourly_fundrate):
     return hourly_fundrate * HOURS_PER_YEAR
 
-def annual_fundrate_to_hourly(annual_fundrate):
+def afr2h(annual_fundrate):
     return annual_fundrate / HOURS_PER_YEAR

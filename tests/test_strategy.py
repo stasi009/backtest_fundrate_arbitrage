@@ -1,14 +1,12 @@
-from simulator.utils import Config
+from simulator.utils import Config, afr2h
 from simulator.strategy import FundingArbStrategy
 from prettytable import PrettyTable
 import logging
 
-HOURS_PER_YEAR = 24 * 365
-
 
 def get_config():
-    annual_fundrate_diff_open = 0.1
-    annual_fundrate_diff_close = 0.01
+    annual_fr_diff_open = 0.1
+    annual_fr_diff_close = 0.01
     coins = ["btc", "eth", "sol"]
 
     return Config(
@@ -17,8 +15,8 @@ def get_config():
         commission=1 / 1000,
         slippage=0,
         ordersize_usd=1000,
-        fundrate_diff_open=annual_fundrate_diff_open / HOURS_PER_YEAR,
-        fundrate_diff_close=annual_fundrate_diff_close / HOURS_PER_YEAR,
+        fundrate_diff_open=afr2h(annual_fr_diff_open),
+        fundrate_diff_close=afr2h(annual_fr_diff_close),
         fundrate_diff_change_pct=0.1,
         data_dir="data/input",
         exchanges=["dydx", "rabbitx"],

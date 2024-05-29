@@ -1,5 +1,5 @@
 from simulator.exchange import Exchange, MarginCall, PerpsAccount
-from simulator.utils import Config
+from simulator.utils import Config, hfr2a
 from dataclasses import dataclass
 from datetime import datetime
 from copy import copy
@@ -165,11 +165,13 @@ class FundingArbTrade:
         # 如果两个fundrate都正，在fundrate更小的ex long，支付较少funding，在fundrate更大的ex short，收取较多的funding
         # 如果两个fundrate都负，在fundrate更负的ex long，收取较多funding，在abs(fundrate)小的ex short，支付较少funding
         # 如果两个fundrate一正一负，在fundrate<0的ex long，收取funding，在fundrate>0的ex short，收取funding
-        self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
+        short_fr = current_fundrates["short"]
+        long_fr = current_fundrates["long"]
+        self.latest_fundrate_diff = short_fr - long_fr
         logging.info(
-            f'Trade[{self.name}] ShortFundRate={current_fundrates["short"]:.2f}%'
-            f', LongFundRate={current_fundrates["long"]:.2f}%'
-            f", FundRateDiff={self.latest_fundrate_diff:.2f}%"
+            f"Trade[{self.name}] ASFR={hfr2a(short_fr):.2%}%"
+            f", ALFR={hfr2a(long_fr):.2%}%"
+            f", AFR_Diff={hfr2a(self.latest_fundrate_diff):.2%}%"
         )
         return self.latest_fundrate_diff
 
