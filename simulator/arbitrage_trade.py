@@ -166,6 +166,11 @@ class FundingArbTrade:
         # 如果两个fundrate都负，在fundrate更负的ex long，收取较多funding，在abs(fundrate)小的ex short，支付较少funding
         # 如果两个fundrate一正一负，在fundrate<0的ex long，收取funding，在fundrate>0的ex short，收取funding
         self.latest_fundrate_diff = current_fundrates["short"] - current_fundrates["long"]
+        logging.info(
+            f'Trade[{self.name}] ShortFundRate={current_fundrates["short"]:.2f}%'
+            f', LongFundRate={current_fundrates["long"]:.2f}%'
+            f", FundRateDiff={self.latest_fundrate_diff:.2f}%"
+        )
         return self.latest_fundrate_diff
 
     def settle(
