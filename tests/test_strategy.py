@@ -27,5 +27,9 @@ def main():
     strategy = FundingArbStrategy(get_config())
     strategy.run()
     
+    for exname, exchange in strategy.iter_exchanges():
+        print(f'\n-------- {exname}')
+        exchange.inspect()
+    
 if __name__ == "__main__":
     main()
